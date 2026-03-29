@@ -1,4 +1,5 @@
 require "option_parser"
+require "digest/sha256"
 
 VERSION = "0.1.0"
 
@@ -47,9 +48,9 @@ USAGE = <<-USAGE
     --init CODE     Insert CODE before the main body/loop
     --final CODE    Insert CODE after the main body/loop
     --dump          Print generated Crystal code and exit
-    -O LEVEL        Pass optimization level to crystal run (0,1,2,3,s,z)
-    --release       Pass --release to crystal run
-    --error-trace   Pass --error-trace to crystal run
+    -O LEVEL        Pass optimization level to crystal build (0,1,2,3,s,z)
+    --release       Pass --release to crystal build
+    --error-trace   Pass --error-trace to crystal build
     -h, --help      Show this help
 
   Notes:
@@ -160,11 +161,34 @@ def parse_args(argv : Array(String)) : Options
 end
 
 def crystal_run_args(opts : Options) : Array(String)
-  args = ["run"] + opts.crystal_flags + ["src/__crys_main.cr"]
-  if opts.inplace_suffix.nil? && !opts.files.empty?
-    args += ["--"] + opts.files
-  end
-  args
+  opts.inplace_suffix.nil? ? opts.files : [] of String
+end
+
+private def crystal_build_args(opts : Options, binary_path : String) : Array(String)
+  ["build"] + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
+end
+
+private def cached_binary_path(opts : Options, code : String) : String
+  cache_dir = File.join(opts.crys_home, "cache")
+  Dir.mkdir_p(cache_dir)
+  cache_key = Digest::SHA256.hexdigest(opts.crystal_flags.join("\0") + "\0" + code)
+  File.join(cache_dir, cache_key)
+end
+
+private def ensure_cached_binary(opts : Options, code : String) : String
+  binary_path = cached_binary_path(opts, code)
+  return binary_path if File.exists?(binary_path)
+
+  status = Process.run(
+    "crystal",
+    args: crystal_build_args(opts, binary_path),
+    output: :inherit,
+    error: :inherit,
+    chdir: opts.crys_home
+  )
+  exit status.exit_code unless status.success?
+
+  binary_path
 end
 
 private def reads_from_files?(opts : Options) : Bool
@@ -270,7 +294,7 @@ private def generate_final_code(io : IO, opts : Options) : Nil
   io << opts.final_code << "\n"
 end
 
-private def run_inplace_file(opts : Options, filepath : String, inplace_suffix : String) : Int32
+private def run_inplace_file(binary_path : String, filepath : String, inplace_suffix : String) : Int32
   tmp_file = filepath + ".crys_tmp_#{Process.pid}"
 
   unless inplace_suffix.empty?
@@ -281,13 +305,11 @@ private def run_inplace_file(opts : Options, filepath : String, inplace_suffix :
   status = File.open(filepath) do |input_file|
     File.open(tmp_file, "w", perm: 0o600) do |output_file|
       Process.run(
-        "crystal",
-        args: crystal_run_args(opts),
+        binary_path,
         env: env,
         input: input_file,
         output: output_file,
         error: :inherit,
-        chdir: opts.crys_home
       )
     end
   end
@@ -359,34 +381,23 @@ def run(opts : Options) : NoReturn
     exit 0
   end
 
+  binary_path = ensure_cached_binary(opts, code)
+
   if inplace_suffix = opts.inplace_suffix
     # In-place editing: process each file individually
     opts.files.each do |filepath|
-      exit_code = run_inplace_file(opts, filepath, inplace_suffix)
+      exit_code = run_inplace_file(binary_path, filepath, inplace_suffix)
       exit exit_code unless exit_code == 0
     end
     exit 0
   end
 
-  if opts.files.empty?
-    status = Process.run(
-      "crystal",
-      args: crystal_run_args(opts),
-      input: :inherit,
-      output: :inherit,
-      error: :inherit,
-      chdir: opts.crys_home
-    )
-    exit status.exit_code
-  else
-    status = Process.run(
-      "crystal",
-      args: crystal_run_args(opts),
-      input: :inherit,
-      output: :inherit,
-      error: :inherit,
-      chdir: opts.crys_home
-    )
-    exit status.exit_code
-  end
+  status = Process.run(
+    binary_path,
+    args: crystal_run_args(opts),
+    input: :inherit,
+    output: :inherit,
+    error: :inherit,
+  )
+  exit status.exit_code
 end

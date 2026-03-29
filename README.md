@@ -90,9 +90,9 @@ crys --dump -p 'line.upcase'
 - `--init CODE`: insert code before the main body or loop
 - `--final CODE`: insert code after the main body or loop
 - `--dump`: print the generated Crystal code and exit
-- `-O LEVEL`: run with optimization level (`0`, `1`, `2`, `3`, `s`, `z`)
-- `--release`: run with `crystal run --release`
-- `--error-trace`: run with `crystal run --error-trace`
+- `-O LEVEL`: build with optimization level (`0`, `1`, `2`, `3`, `s`, `z`)
+- `--release`: build with `crystal build --release`
+- `--error-trace`: build with `crystal build --error-trace`
 - `-h`, `--help`: show help
 
 Implicit variables:
@@ -102,6 +102,8 @@ Implicit variables:
 - `nr`: record number
 - `input`: full slurped input, only with `-g` or `--slurp`
 - `path`: current file path when reading files or editing in place
+
+Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
 
 Constraints:
 

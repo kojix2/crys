@@ -268,3 +268,15 @@ describe "parse_args" do
     end
   end
 end
+
+describe "crystal_run_args" do
+  it "passes file arguments to cached binaries" do
+    opts = make_opts(files: ["a.txt", "b.txt"])
+    crystal_run_args(opts).should eq(["a.txt", "b.txt"])
+  end
+
+  it "does not pass file arguments during in-place editing" do
+    opts = make_opts(files: ["a.txt"], inplace_suffix: ".bak")
+    crystal_run_args(opts).should eq([] of String)
+  end
+end
