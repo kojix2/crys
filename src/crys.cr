@@ -47,6 +47,7 @@ USAGE = <<-USAGE
     --init CODE     Insert CODE before the main body/loop
     --final CODE    Insert CODE after the main body/loop
     --dump          Print generated Crystal code and exit
+    -O LEVEL        Pass optimization level to crystal run (0,1,2,3,s,z)
     --release       Pass --release to crystal run
     --error-trace   Pass --error-trace to crystal run
     -h, --help      Show this help
@@ -59,7 +60,7 @@ USAGE = <<-USAGE
   USAGE
 
 private def preprocess_args(argv : Array(String), opts : Options) : Array(String)
-  # Pre-process argv to handle -i[SUFFIX] and -F[SEP] without space
+  # Pre-process argv to handle -i[SUFFIX], -F[SEP], and -OLEVEL without space
   # These can't be handled cleanly by OptionParser alone, so we transform first.
   processed = [] of String
   i = 0
@@ -72,6 +73,11 @@ private def preprocess_args(argv : Array(String), opts : Options) : Array(String
     end
     if arg.starts_with?("-F") && arg.bytesize > 2
       opts.split_sep = arg[2..]
+      i += 1
+      next
+    end
+    if arg.starts_with?("-O") && arg.bytesize > 2
+      opts.crystal_flags << "-O#{arg[2..]}"
       i += 1
       next
     end
@@ -141,6 +147,9 @@ def parse_args(argv : Array(String)) : Options
     opts.final_code = code
   end
   parser.on("--dump", "Print generated code and exit") { opts.dump_only = true }
+  parser.on("-O LEVEL", "Pass optimization level to crystal") do |level|
+    opts.crystal_flags << "-O#{level}"
+  end
   parser.on("--release", "Pass --release to crystal") { opts.crystal_flags << "--release" }
   parser.on("--error-trace", "Pass --error-trace to crystal") { opts.crystal_flags << "--error-trace" }
 

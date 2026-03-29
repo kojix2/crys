@@ -141,6 +141,10 @@ run_cmd_with_stdin 'ok\n' "$BIN" --error-trace -n 'puts line'
 assert_status 0
 assert_stdout_eq 'ok'
 
+run_cmd_with_stdin 'ok\n' "$BIN" -O2 -n 'puts line'
+assert_status 0
+assert_stdout_eq 'ok'
+
 printf 'Testing file input concatenation...\n'
 printf 'foo\n' >"$TEST_DIR/a.txt"
 printf 'bar\n' >"$TEST_DIR/b.txt"

@@ -229,6 +229,16 @@ describe "parse_args" do
     opts.crystal_flags.should contain("--error-trace")
   end
 
+  it "-O LEVEL goes into crystal_flags" do
+    opts = parse_args(["-O", "2", "puts 1"])
+    opts.crystal_flags.should contain("-O2")
+  end
+
+  it "-O2 goes into crystal_flags" do
+    opts = parse_args(["-O2", "puts 1"])
+    opts.crystal_flags.should contain("-O2")
+  end
+
   it "-i.bak sets inplace_suffix to .bak" do
     opts = parse_args(["-i.bak", "puts line", "file.txt"])
     opts.inplace_suffix.should eq(".bak")

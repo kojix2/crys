@@ -90,6 +90,7 @@ crys --dump -p 'line.upcase'
 - `--init CODE`: insert code before the main body or loop
 - `--final CODE`: insert code after the main body or loop
 - `--dump`: print the generated Crystal code and exit
+- `-O LEVEL`: run with optimization level (`0`, `1`, `2`, `3`, `s`, `z`)
 - `--release`: run with `crystal run --release`
 - `--error-trace`: run with `crystal run --error-trace`
 - `-h`, `--help`: show help
