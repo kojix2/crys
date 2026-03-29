@@ -1,0 +1,13 @@
+name: crys
+version: 0.1.0
+
+authors:
+  - kojix2 <2xijok@gmail.com>
+
+targets:
+  crys:
+    main: src/main.cr
+
+crystal: '>= 1.19.1'
+
+license: MIT

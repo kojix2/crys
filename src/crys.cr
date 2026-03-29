@@ -1,0 +1,343 @@
+require "option_parser"
+
+VERSION = "0.1.0"
+
+class Options
+  property crys_home : String
+  property? mode_n : Bool = false
+  property? mode_p : Bool = false
+  property? autosplit : Bool = false
+  property? slurp : Bool = false
+  property split_sep : String = ""
+  property init_code : String = ""
+  property final_code : String = ""
+  property body_code : String = ""
+  property requires : Array(String) = [] of String
+  property files : Array(String) = [] of String
+  property crystal_flags : Array(String) = [] of String
+  property? dump_only : Bool = false
+  property inplace_suffix : String?
+
+  def initialize
+    @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
+    @inplace_suffix = nil
+  end
+end
+
+USAGE = <<-USAGE
+  Usage:
+    crys [options] 'CRYSTAL_CODE' [file ...]
+
+  Examples:
+    crys -n 'puts line'
+    crys -p 'line.upcase'
+    crys -a -F: 'puts f[1]'
+    crys --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
+    crys -r json -g 'pp JSON.parse(input)'
+    crys -pi.bak 'line.gsub("foo", "bar")' file.txt
+
+  Options:
+    -n              Read input line by line. Exposes: line, nr
+    -p              Like -n, but assigns body result back to line and prints it
+    -a              Auto-split line into f
+    -F SEP          Field separator for -a (default: " ")
+    -g, --slurp     Read all input into input
+    -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
+    -r LIB          Add require "LIB" (repeatable)
+    --init CODE     Insert CODE before the main body/loop
+    --final CODE    Insert CODE after the main body/loop
+    --dump          Print generated Crystal code and exit
+    --release       Pass --release to crystal run
+    --error-trace   Pass --error-trace to crystal run
+    -h, --help      Show this help
+
+  Notes:
+    * line is always chomped.
+    * Implicit variables: line, f, nr, path, input
+    * Dependencies are resolved from CRYS_HOME (default: ~/.local/share/crys).
+    * Manage shard.yml / shards install there manually.
+  USAGE
+
+private def preprocess_args(argv : Array(String), opts : Options) : Array(String)
+  # Pre-process argv to handle -i[SUFFIX] and -F[SEP] without space
+  # These can't be handled cleanly by OptionParser alone, so we transform first.
+  processed = [] of String
+  i = 0
+  while i < argv.size
+    arg = argv[i]
+    if arg.starts_with?("-i") && !arg.starts_with?("--")
+      opts.inplace_suffix = arg.bytesize == 2 ? "" : arg[2..]
+      i += 1
+      next
+    end
+    if arg.starts_with?("-F") && arg.bytesize > 2
+      opts.split_sep = arg[2..]
+      i += 1
+      next
+    end
+    processed << arg
+    i += 1
+  end
+
+  processed
+end
+
+private def finalize_options(opts : Options, remaining : Array(String)) : Options
+  if opts.autosplit? && opts.split_sep.empty?
+    opts.split_sep = " "
+  end
+
+  if opts.autosplit? && !opts.mode_n?
+    opts.mode_n = true
+  end
+
+  if remaining.empty?
+    raise ArgumentError.new("missing Crystal code")
+  end
+
+  opts.body_code = remaining[0]
+  opts.files = remaining[1..] if remaining.size > 1
+
+  validate_options(opts)
+
+  opts
+end
+
+private def validate_options(opts : Options) : Nil
+  if opts.slurp? && opts.mode_n?
+    raise ArgumentError.new("-g/--slurp cannot be combined with -n/-p")
+  end
+
+  if !opts.inplace_suffix.nil? && opts.files.empty?
+    raise ArgumentError.new("-i requires at least one file")
+  end
+end
+
+def parse_args(argv : Array(String)) : Options
+  opts = Options.new
+  parser = OptionParser.new
+
+  parser.on("-h", "--help", "Show this help") do
+    puts USAGE
+    exit 0
+  end
+  parser.on("-n", "Line loop") { opts.mode_n = true }
+  parser.on("-p", "Line loop with print") do
+    opts.mode_p = true
+    opts.mode_n = true
+  end
+  parser.on("-a", "Auto-split line into f") { opts.autosplit = true }
+  parser.on("-F SEP", "Field separator") do |sep|
+    opts.split_sep = sep
+  end
+  parser.on("-g", "--slurp", "Read all input into input") { opts.slurp = true }
+  parser.on("-r LIB", "Require library") do |req|
+    opts.requires << req
+  end
+  parser.on("--init CODE", "Code before loop") do |code|
+    opts.init_code = code
+  end
+  parser.on("--final CODE", "Code after loop") do |code|
+    opts.final_code = code
+  end
+  parser.on("--dump", "Print generated code and exit") { opts.dump_only = true }
+  parser.on("--release", "Pass --release to crystal") { opts.crystal_flags << "--release" }
+  parser.on("--error-trace", "Pass --error-trace to crystal") { opts.crystal_flags << "--error-trace" }
+
+  processed = preprocess_args(argv, opts)
+
+  parser.parse(processed)
+  finalize_options(opts, processed)
+end
+
+def crystal_run_args(opts : Options) : Array(String)
+  ["run"] + opts.crystal_flags + ["src/__crys_main.cr"]
+end
+
+private def generate_requires(io : IO, opts : Options) : Nil
+  opts.requires.each do |req|
+    io << "require #{req.inspect}\n"
+  end
+  io << "\n" unless opts.requires.empty?
+end
+
+private def generate_path_binding(io : IO, opts : Options) : Nil
+  return if opts.inplace_suffix.nil? && opts.files.empty?
+
+  io << "path = ENV[\"CRYS_FILE\"]? || \"\"\n\n"
+end
+
+private def generate_init_code(io : IO, opts : Options) : Nil
+  return if opts.init_code.empty?
+
+  io << "# --init\n"
+  io << opts.init_code << "\n\n"
+end
+
+private def append_indented_code(io : IO, code : String, indent : String) : Nil
+  code.each_line do |body_line|
+    io << indent << body_line << "\n"
+  end
+end
+
+private def generate_autosplit(io : IO) : Nil
+  io << "  f =\n"
+  io << "    if __crys_sep == \" \"\n"
+  io << "      line.split\n"
+  io << "    else\n"
+  io << "      line.split(__crys_sep)\n"
+  io << "    end\n"
+end
+
+private def generate_line_mode(io : IO, opts : Options) : Nil
+  if opts.autosplit?
+    sep_literal = opts.split_sep.inspect
+    io << "__crys_sep = #{sep_literal}\n\n"
+  end
+
+  io << "nr = 0\n"
+  io << "STDIN.each_line do |__raw_line|\n"
+  io << "  nr += 1\n"
+  io << "  line = __raw_line.chomp\n"
+
+  generate_autosplit(io) if opts.autosplit?
+
+  if opts.mode_p?
+    io << "  line = begin\n"
+    append_indented_code(io, opts.body_code, "    ")
+    io << "  end\n"
+    io << "  puts line\n"
+  else
+    append_indented_code(io, opts.body_code, "  ")
+  end
+
+  io << "end\n"
+end
+
+private def generate_final_code(io : IO, opts : Options) : Nil
+  return if opts.final_code.empty?
+
+  io << "\n# --final\n"
+  io << opts.final_code << "\n"
+end
+
+private def run_inplace_file(opts : Options, filepath : String, inplace_suffix : String) : Int32
+  tmp_file = filepath + ".crys_tmp_#{Process.pid}"
+
+  unless inplace_suffix.empty?
+    File.copy(filepath, filepath + inplace_suffix)
+  end
+
+  env = {"CRYS_FILE" => filepath}
+  status = File.open(filepath) do |input_file|
+    File.open(tmp_file, "w", perm: 0o600) do |output_file|
+      Process.run(
+        "crystal",
+        args: crystal_run_args(opts),
+        env: env,
+        input: input_file,
+        output: output_file,
+        error: :inherit,
+        chdir: opts.crys_home
+      )
+    end
+  end
+
+  return status.exit_code unless status.success?
+
+  File.rename(tmp_file, filepath)
+  0
+rescue ex : File::Error
+  STDERR.puts "crys: File operation failed: #{ex.message}"
+  1
+rescue ex : IO::Error
+  STDERR.puts "crys: Process execution failed: #{ex.message}"
+  1
+rescue ex
+  STDERR.puts "crys: Unexpected error: #{ex.class}: #{ex.message}"
+  1
+ensure
+  if existing_tmp_file = tmp_file
+    File.delete(existing_tmp_file) if File.exists?(existing_tmp_file)
+  end
+end
+
+def generate_code(opts : Options) : String
+  io = IO::Memory.new
+
+  io << "# generated by crys\n\n"
+
+  generate_requires(io, opts)
+  generate_path_binding(io, opts)
+  generate_init_code(io, opts)
+
+  if opts.slurp?
+    io << "input = STDIN.gets_to_end\n\n"
+    io << opts.body_code << "\n"
+  elsif opts.mode_n?
+    generate_line_mode(io, opts)
+  else
+    io << opts.body_code << "\n"
+  end
+
+  generate_final_code(io, opts)
+
+  io.to_s
+end
+
+def run(opts : Options) : NoReturn
+  Dir.mkdir_p(File.join(opts.crys_home, "src"))
+  main_file = File.join(opts.crys_home, "src", "__crys_main.cr")
+
+  code = generate_code(opts)
+  File.write(main_file, code)
+
+  if opts.dump_only?
+    print code
+    exit 0
+  end
+
+  if inplace_suffix = opts.inplace_suffix
+    # In-place editing: process each file individually
+    opts.files.each do |filepath|
+      exit_code = run_inplace_file(opts, filepath, inplace_suffix)
+      exit exit_code unless exit_code == 0
+    end
+    exit 0
+  end
+
+  if opts.files.empty?
+    status = Process.run(
+      "crystal",
+      args: crystal_run_args(opts),
+      input: :inherit,
+      output: :inherit,
+      error: :inherit,
+      chdir: opts.crys_home
+    )
+    exit status.exit_code
+  else
+    # Concatenate files into a pipe
+    read_io, write_io = IO.pipe
+    spawn do
+      opts.files.each do |filepath|
+        File.open(filepath) do |file_io|
+          IO.copy(file_io, write_io)
+        end
+      end
+      write_io.close
+    end
+    env = {"CRYS_FILE" => opts.files[0]}
+    status = Process.run(
+      "crystal",
+      args: crystal_run_args(opts),
+      env: env,
+      input: read_io,
+      output: :inherit,
+      error: :inherit,
+      chdir: opts.crys_home
+    )
+    read_io.close
+    exit status.exit_code
+  end
+end

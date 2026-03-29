@@ -1,0 +1,34 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+
+      - name: Show versions
+        run: |
+          crystal --version
+          shards --version
+
+      - name: Install dependencies
+        run: shards install
+
+      - name: Run unit tests
+        run: crystal spec
+
+      - name: Run integration tests
+        run: bash spec/integration_test.sh
