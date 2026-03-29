@@ -152,6 +152,11 @@ run_cmd "$BIN" -n 'puts line' "$TEST_DIR/a.txt" "$TEST_DIR/b.txt"
 assert_status 0
 assert_stdout_eq $'foo\nbar'
 
+run_cmd "$BIN" -n 'puts "#{path}:#{line}"' "$TEST_DIR/a.txt" "$TEST_DIR/b.txt"
+assert_status 0
+printf -v expected_path_output '%s:foo\n%s:bar' "$TEST_DIR/a.txt" "$TEST_DIR/b.txt"
+assert_stdout_eq "$expected_path_output"
+
 printf 'Testing path variable for per-file runs...\n'
 printf 'first\n' >"$TEST_DIR/path.txt"
 run_cmd "$BIN" -i.bak -p '"#{path}:#{line}"' "$TEST_DIR/path.txt"

@@ -158,12 +158,25 @@ describe "generate_code" do
 
   it "emits ENV[CRYS_FILE] when files are specified" do
     code = generate_code(make_opts(files: ["input.txt"]))
-    code.should contain(%("CRYS_FILE"))
+    code.should contain(%(path = ""))
   end
 
   it "does not emit ENV[CRYS_FILE] without -i and without files" do
     code = generate_code(make_opts)
     code.should_not contain(%("CRYS_FILE"))
+  end
+
+  it "iterates through files in line mode when files are specified" do
+    code = generate_code(make_opts(mode_n: true, files: ["a.txt", "b.txt"]))
+    code.should contain("ARGV.each do |path|")
+    code.should contain("File.open(path)")
+    code.should contain("__crys_file.each_line")
+  end
+
+  it "reads each file separately in slurp mode when files are specified" do
+    code = generate_code(make_opts(slurp: true, files: ["a.txt", "b.txt"]))
+    code.should contain("ARGV.each do |path|")
+    code.should contain("input = File.read(path)")
   end
 end
 

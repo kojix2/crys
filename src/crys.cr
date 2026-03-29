@@ -160,7 +160,15 @@ def parse_args(argv : Array(String)) : Options
 end
 
 def crystal_run_args(opts : Options) : Array(String)
-  ["run"] + opts.crystal_flags + ["src/__crys_main.cr"]
+  args = ["run"] + opts.crystal_flags + ["src/__crys_main.cr"]
+  if opts.inplace_suffix.nil? && !opts.files.empty?
+    args += ["--"] + opts.files
+  end
+  args
+end
+
+private def reads_from_files?(opts : Options) : Bool
+  opts.inplace_suffix.nil? && !opts.files.empty?
 end
 
 private def generate_requires(io : IO, opts : Options) : Nil
@@ -171,9 +179,11 @@ private def generate_requires(io : IO, opts : Options) : Nil
 end
 
 private def generate_path_binding(io : IO, opts : Options) : Nil
-  return if opts.inplace_suffix.nil? && opts.files.empty?
-
-  io << "path = ENV[\"CRYS_FILE\"]? || \"\"\n\n"
+  if !opts.inplace_suffix.nil?
+    io << "path = ENV[\"CRYS_FILE\"]? || \"\"\n\n"
+  elsif reads_from_files?(opts)
+    io << "path = \"\"\n\n"
+  end
 end
 
 private def generate_init_code(io : IO, opts : Options) : Nil
@@ -205,22 +215,52 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
   end
 
   io << "nr = 0\n"
-  io << "STDIN.each_line do |__raw_line|\n"
-  io << "  nr += 1\n"
-  io << "  line = __raw_line.chomp\n"
+  if reads_from_files?(opts)
+    io << "ARGV.each do |path|\n"
+    io << "  File.open(path) do |__crys_file|\n"
+    io << "    __crys_file.each_line do |__raw_line|\n"
+    io << "      nr += 1\n"
+    io << "      line = __raw_line.chomp\n"
 
-  generate_autosplit(io) if opts.autosplit?
+    if opts.autosplit?
+      io << "      f =\n"
+      io << "        if __crys_sep == \" \"\n"
+      io << "          line.split\n"
+      io << "        else\n"
+      io << "          line.split(__crys_sep)\n"
+      io << "        end\n"
+    end
 
-  if opts.mode_p?
-    io << "  line = begin\n"
-    append_indented_code(io, opts.body_code, "    ")
+    if opts.mode_p?
+      io << "      line = begin\n"
+      append_indented_code(io, opts.body_code, "        ")
+      io << "      end\n"
+      io << "      puts line\n"
+    else
+      append_indented_code(io, opts.body_code, "      ")
+    end
+
+    io << "    end\n"
     io << "  end\n"
-    io << "  puts line\n"
+    io << "end\n"
   else
-    append_indented_code(io, opts.body_code, "  ")
-  end
+    io << "STDIN.each_line do |__raw_line|\n"
+    io << "  nr += 1\n"
+    io << "  line = __raw_line.chomp\n"
 
-  io << "end\n"
+    generate_autosplit(io) if opts.autosplit?
+
+    if opts.mode_p?
+      io << "  line = begin\n"
+      append_indented_code(io, opts.body_code, "    ")
+      io << "  end\n"
+      io << "  puts line\n"
+    else
+      append_indented_code(io, opts.body_code, "  ")
+    end
+
+    io << "end\n"
+  end
 end
 
 private def generate_final_code(io : IO, opts : Options) : Nil
@@ -281,12 +321,25 @@ def generate_code(opts : Options) : String
   generate_init_code(io, opts)
 
   if opts.slurp?
-    io << "input = STDIN.gets_to_end\n\n"
-    io << opts.body_code << "\n"
+    if reads_from_files?(opts)
+      io << "ARGV.each do |path|\n"
+      io << "  input = File.read(path)\n\n"
+      append_indented_code(io, opts.body_code, "  ")
+      io << "end\n"
+    else
+      io << "input = STDIN.gets_to_end\n\n"
+      io << opts.body_code << "\n"
+    end
   elsif opts.mode_n?
     generate_line_mode(io, opts)
   else
-    io << opts.body_code << "\n"
+    if reads_from_files?(opts)
+      io << "ARGV.each do |path|\n"
+      append_indented_code(io, opts.body_code, "  ")
+      io << "end\n"
+    else
+      io << opts.body_code << "\n"
+    end
   end
 
   generate_final_code(io, opts)
@@ -326,27 +379,14 @@ def run(opts : Options) : NoReturn
     )
     exit status.exit_code
   else
-    # Concatenate files into a pipe
-    read_io, write_io = IO.pipe
-    spawn do
-      opts.files.each do |filepath|
-        File.open(filepath) do |file_io|
-          IO.copy(file_io, write_io)
-        end
-      end
-      write_io.close
-    end
-    env = {"CRYS_FILE" => opts.files[0]}
     status = Process.run(
       "crystal",
       args: crystal_run_args(opts),
-      env: env,
-      input: read_io,
+      input: :inherit,
       output: :inherit,
       error: :inherit,
       chdir: opts.crys_home
     )
-    read_io.close
     exit status.exit_code
   end
 end
