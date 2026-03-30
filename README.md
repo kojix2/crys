@@ -2,30 +2,18 @@
 
 A Crystal one-liner tool.
 
-It does four things only.
-
-- decide how input is iterated
-- decide what each record sees
-- decide what to require
-- decide how output is emitted
-
-It does not add dependency management or a custom DSL. It is a thin wrapper around plain Crystal code.
+[![test](https://github.com/kojix2/crys/actions/workflows/test.yml/badge.svg)](https://github.com/kojix2/crys/actions/workflows/test.yml)
 
 ## Installation
 
-Build:
+Build from source:
 
 ```sh
+git clone https://github.com/kojix2/crys
+cd crys
 shards build
+mv bin/crys ~/.local/bin
 ```
-
-Binary:
-
-```sh
-bin/crys
-```
-
-Move it somewhere on your PATH if needed.
 
 ## Usage
 
@@ -122,10 +110,4 @@ Run integration tests:
 
 ```sh
 bash spec/integration_test.sh
-```
-
-Build locally:
-
-```sh
-crystal build src/main.cr -o bin/crys
 ```
