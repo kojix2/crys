@@ -121,13 +121,14 @@ printf '1\nfoo\n3\n' | crys --where 'line =~ /^[0-9]+$/' --sum 'line.to_i' --cou
 - `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
 - `--count`: count selected rows; exposes `__crys_count`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
-- `-r LIB`: add `require "LIB"`. Repeatable
+- `-r LIB`: add `require "LIB"` to the generated program. Resolution is done from `CRYS_HOME`
 - `--init CODE`: insert code before the main body or loop
 - `--final CODE`: insert code after the main body or loop
 - `--dump`: print the generated Crystal code and exit
 - `-O LEVEL`: build with optimization level (`0`, `1`, `2`, `3`, `s`, `z`)
 - `--release`: build with `crystal build --release`
 - `--error-trace`: build with `crystal build --error-trace`
+- `--version`: show tool version
 - `-h`, `--help`: show help
 
 Implicit variables:
@@ -141,6 +142,28 @@ Implicit variables:
 - `row`: `Hash(String, String)` mapped from header columns, only with `--header`
 
 Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
+
+## Dependency Resolution (CRYS_HOME)
+
+`crys` builds and runs generated programs under `CRYS_HOME` (default: `~/.local/share/crys`).
+When you use `-r LIB`, dependency resolution is performed from this directory.
+
+Typical setup:
+
+```sh
+export CRYS_HOME="$HOME/.local/share/crys"
+mkdir -p "$CRYS_HOME"
+cd "$CRYS_HOME"
+shards init
+vi shard.yml # Add your favorite shards
+shards install
+```
+
+Then:
+
+```sh
+printf '{"a":1}' | crys -r json 'puts JSON.parse(ARGF)["a"].as_i'
+```
 
 Constraints:
 
