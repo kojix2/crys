@@ -1,5 +1,19 @@
 require "./spec_helper"
 
+alias Options = Crys::Options
+
+private def parse_args(argv : Array(String)) : Options
+  Crys.parse_args(argv)
+end
+
+private def generate_code(opts : Options) : String
+  Crys.generate_code(opts)
+end
+
+private def crystal_run_args(opts : Options) : Array(String)
+  Crys.crystal_run_args(opts)
+end
+
 # Helper: build an Options with defaults; override via keyword args
 private def make_opts(
   body_code : String = "puts line",

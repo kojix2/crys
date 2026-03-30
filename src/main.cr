@@ -1,10 +1,10 @@
 require "./crys"
 
 begin
-  opts = parse_args(ARGV.to_a)
-  run(opts)
+  opts = Crys.parse_args(ARGV.to_a)
+  Crys.run(opts)
 rescue e : ArgumentError
   STDERR.puts "crys: #{e.message}"
-  STDERR.puts USAGE
+  STDERR.puts Crys::USAGE
   exit 1
 end
