@@ -11,6 +11,8 @@ STDOUT_FILE="$TMP_DIR/stdout"
 STDERR_FILE="$TMP_DIR/stderr"
 STATUS=0
 
+VERSION="$(cd "$ROOT_DIR" && shards version)"
+
 cleanup() {
   rm -rf "$TMP_DIR"
 }
@@ -94,7 +96,9 @@ assert_stdout_contains 'Usage:'
 run_cmd "$BIN" --help
 assert_status 0
 assert_stdout_contains 'Options:'
-
+run_cmd "$BIN" --version
+assert_status 0
+assert_stdout_eq "crys ${VERSION}"
 printf 'Testing line processing options...\n'
 run_cmd_with_stdin 'alpha\nbeta\n' "$BIN" -n 'puts line.upcase'
 assert_status 0

@@ -65,6 +65,7 @@ module Crys
     -O LEVEL        Pass optimization level to crystal build (0,1,2,3,s,z)
     --release       Pass --release to crystal build
     --error-trace   Pass --error-trace to crystal build
+    --version       Show version
     -h, --help      Show this help
 
   Notes:
@@ -184,6 +185,10 @@ module Crys
   private def self.configure_parser(parser : OptionParser, opts : Options) : Nil
     parser.on("-h", "--help", "Show this help") do
       puts USAGE
+      exit 0
+    end
+    parser.on("--version", "Show version") do
+      puts "crys #{VERSION}"
       exit 0
     end
     parser.on("-n", "Line loop") { opts.mode_n = true }
