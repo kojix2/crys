@@ -16,7 +16,7 @@ end
 
 # Helper: build an Options with defaults; override via keyword args
 private def make_opts(
-  body_code : String = "puts line",
+  body_code : String = "puts l",
   mode_n : Bool = false,
   mode_p : Bool = false,
   autosplit : Bool = false,
@@ -69,7 +69,7 @@ describe "generate_code" do
     code.should contain(%(require "yaml"))
   end
 
-  it "emits no require line when requires is empty" do
+  it "emits no require l when requires is empty" do
     code = generate_code(make_opts)
     code.should_not contain("require")
   end
@@ -80,12 +80,12 @@ describe "generate_code" do
     code = generate_code(make_opts(mode_n: true))
     code.should contain("STDIN.each_line")
     code.should contain("nr += 1")
-    code.should contain("line = __raw_line.chomp")
+    code.should contain("l = __raw_line.chomp")
   end
 
   it "indents body_code inside each_line loop for -n" do
-    code = generate_code(make_opts(mode_n: true, body_code: "puts line"))
-    code.should contain("  puts line")
+    code = generate_code(make_opts(mode_n: true, body_code: "puts l"))
+    code.should contain("  puts l")
   end
 
   it "emits no each_line without -n" do
@@ -95,17 +95,17 @@ describe "generate_code" do
 
   # ── mode_p ────────────────────────────────────────────────────────────────
 
-  it "emits each_line + line=begin/end + puts line for -p" do
-    code = generate_code(make_opts(mode_p: true, body_code: "line.upcase"))
+  it "emits each_line + l=begin/end + puts l for -p" do
+    code = generate_code(make_opts(mode_p: true, body_code: "l.upcase"))
     code.should contain("STDIN.each_line")
-    code.should contain("line = begin")
+    code.should contain("l = begin")
     code.should contain("end")
-    code.should contain("puts line")
+    code.should contain("puts l")
   end
 
   it "-p wraps body inside begin/end block" do
-    code = generate_code(make_opts(mode_p: true, body_code: "line.upcase"))
-    code.should contain("    line.upcase")
+    code = generate_code(make_opts(mode_p: true, body_code: "l.upcase"))
+    code.should contain("    l.upcase")
   end
 
   # ── autosplit ─────────────────────────────────────────────────────────────
@@ -116,9 +116,9 @@ describe "generate_code" do
     code.should contain("split")
   end
 
-  it "-a without explicit sep uses line.split (whitespace)" do
+  it "-a without explicit sep uses l.split (whitespace)" do
     code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: " "))
-    code.should contain("line.split")
+    code.should contain("l.split")
   end
 
   it "-a -F: uses colon separator in generated code" do
@@ -135,9 +135,9 @@ describe "generate_code" do
   # ── init / final ──────────────────────────────────────────────────────────
 
   it "--init inserts code before body" do
-    code = generate_code(make_opts(mode_n: true, init_code: "sum = 0", body_code: "sum += line.to_i"))
+    code = generate_code(make_opts(mode_n: true, init_code: "sum = 0", body_code: "sum += l.to_i"))
     init_pos = code.index!("sum = 0")
-    body_pos = code.index!("sum += line.to_i")
+    body_pos = code.index!("sum += l.to_i")
     init_pos.should be < body_pos
   end
 
@@ -179,7 +179,7 @@ describe "generate_code" do
     code.should_not contain(%("CRYS_FILE"))
   end
 
-  it "iterates through files in line mode when files are specified" do
+  it "iterates through files in l mode when files are specified" do
     code = generate_code(make_opts(mode_n: true, files: ["a.txt", "b.txt"]))
     code.should contain("ARGV.each do |path|")
     code.should contain("File.open(path)")
@@ -195,17 +195,17 @@ describe "parse_args" do
   end
 
   it "-F: (no space) sets split_sep to colon" do
-    opts = parse_args(["-F:", "puts line"])
+    opts = parse_args(["-F:", "puts l"])
     opts.split_sep.should eq(":")
   end
 
   it "-F : (with space) sets split_sep to colon" do
-    opts = parse_args(["-F", ":", "puts line"])
+    opts = parse_args(["-F", ":", "puts l"])
     opts.split_sep.should eq(":")
   end
 
   it "-p sets mode_n and mode_p" do
-    opts = parse_args(["-p", "line.upcase"])
+    opts = parse_args(["-p", "l.upcase"])
     opts.mode_p?.should be_true
     opts.mode_n?.should be_true
   end
@@ -223,8 +223,8 @@ describe "parse_args" do
   end
 
   it "remaining args split into body_code and files" do
-    opts = parse_args(["puts line", "a.txt", "b.txt"])
-    opts.body_code.should eq("puts line")
+    opts = parse_args(["puts l", "a.txt", "b.txt"])
+    opts.body_code.should eq("puts l")
     opts.files.should eq(["a.txt", "b.txt"])
   end
 
@@ -272,36 +272,36 @@ describe "parse_args" do
   end
 
   it "-i.bak sets inplace_suffix to .bak" do
-    opts = parse_args(["-i.bak", "puts line", "file.txt"])
+    opts = parse_args(["-i.bak", "puts l", "file.txt"])
     opts.inplace_suffix.should eq(".bak")
   end
 
   it "-i (no suffix) sets inplace_suffix to empty string" do
-    opts = parse_args(["-i", "puts line", "file.txt"])
+    opts = parse_args(["-i", "puts l", "file.txt"])
     opts.inplace_suffix.should eq("")
   end
 
   it "raises ArgumentError when -i is used without files" do
     expect_raises(ArgumentError, /-i requires at least one file/) do
-      parse_args(["-i", "puts line"])
+      parse_args(["-i", "puts l"])
     end
   end
 
   it "--where can be repeated" do
-    opts = parse_args(["--where", "line =~ /a/", "--where", "nr > 2", "puts line"])
-    opts.where_conditions.should eq(["line =~ /a/", "nr > 2"])
+    opts = parse_args(["--where", "l =~ /a/", "--where", "nr > 2", "puts l"])
+    opts.where_conditions.should eq(["l =~ /a/", "nr > 2"])
   end
 
   it "--map sets map expression and enables mode_n" do
-    opts = parse_args(["--map", "line.upcase"])
+    opts = parse_args(["--map", "l.upcase"])
     opts.mode_n?.should be_true
-    opts.map_expr.should eq("line.upcase")
+    opts.map_expr.should eq("l.upcase")
   end
 
   it "--select sets condition and enables mode_n" do
-    opts = parse_args(["--select", "line =~ /err/"])
+    opts = parse_args(["--select", "l =~ /err/"])
     opts.mode_n?.should be_true
-    opts.select_cond.should eq("line =~ /err/")
+    opts.select_cond.should eq("l =~ /err/")
   end
 
   it "-N parses comma-separated field names" do
@@ -311,25 +311,25 @@ describe "parse_args" do
 
   it "raises ArgumentError when --map and --select are combined" do
     expect_raises(ArgumentError, /cannot be combined/) do
-      parse_args(["--map", "line", "--select", "nr > 1"])
+      parse_args(["--map", "l", "--select", "nr > 1"])
     end
   end
 
   it "raises ArgumentError when --map has a body code argument" do
     expect_raises(ArgumentError, /do not take CRYSTAL_CODE/) do
-      parse_args(["--map", "line", "puts line"])
+      parse_args(["--map", "l", "puts l"])
     end
   end
 
   it "raises ArgumentError when -N is used without -a" do
     expect_raises(ArgumentError, /-N requires -a/) do
-      parse_args(["-N", "name", "puts line"])
+      parse_args(["-N", "name", "puts l"])
     end
   end
 
   it "raises ArgumentError for invalid names passed to -N" do
     expect_raises(ArgumentError, /invalid field name/) do
-      parse_args(["-a", "-N", "1name", "puts line"])
+      parse_args(["-a", "-N", "1name", "puts l"])
     end
   end
 
@@ -340,14 +340,14 @@ describe "parse_args" do
 
   it "raises ArgumentError when --header is used without -a" do
     expect_raises(ArgumentError, /--header requires -a/) do
-      parse_args(["--header", "puts line"])
+      parse_args(["--header", "puts l"])
     end
   end
 
   it "--sum enables mode_n and stores expression" do
-    opts = parse_args(["--sum", "line.to_i"])
+    opts = parse_args(["--sum", "l.to_i"])
     opts.mode_n?.should be_true
-    opts.sum_expr.should eq("line.to_i")
+    opts.sum_expr.should eq("l.to_i")
   end
 
   it "--count enables mode_n" do
@@ -358,7 +358,7 @@ describe "parse_args" do
 
   it "raises ArgumentError when --sum has a body code argument" do
     expect_raises(ArgumentError, /--sum\/--count do not take CRYSTAL_CODE/) do
-      parse_args(["--sum", "line.to_i", "puts line"])
+      parse_args(["--sum", "l.to_i", "puts l"])
     end
   end
 
@@ -430,17 +430,17 @@ describe "generate_code (fnr / nf / regex separator)" do
     code.should contain("__crys_sep_re")
   end
 
-  it "emits line.split(__crys_sep_re) for regex separator" do
+  it "emits l.split(__crys_sep_re) for regex separator" do
     o = make_opts(mode_n: true, autosplit: true, split_sep: "[ /]+")
     o.split_regex = true
     code = generate_code(o)
-    code.should contain("line.split(__crys_sep_re)")
+    code.should contain("l.split(__crys_sep_re)")
   end
 
-  it "emits line.split (whitespace) for default string separator" do
+  it "emits l.split (whitespace) for default string separator" do
     code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: " "))
     code.should_not contain("Regex.new")
-    code.should contain("line.split")
+    code.should contain("l.split")
   end
 
   it "emits string split for non-whitespace literal separator" do
@@ -454,21 +454,21 @@ describe "generate_code (ergonomic shortcuts)" do
   it "emits --where conditions with AND semantics" do
     code = generate_code(make_opts(
       mode_n: true,
-      body_code: "puts line",
-      where_conditions: ["line =~ /error/", "nr > 1"]
+      body_code: "puts l",
+      where_conditions: ["l =~ /error/", "nr > 1"]
     ))
 
-    code.should contain("if (line =~ /error/) && (nr > 1)")
+    code.should contain("if (l =~ /error/) && (nr > 1)")
   end
 
   it "emits puts(EXPR) for --map" do
-    code = generate_code(make_opts(mode_n: true, map_expr: "line.upcase", body_code: ""))
-    code.should contain("puts(line.upcase)")
+    code = generate_code(make_opts(mode_n: true, map_expr: "l.upcase", body_code: ""))
+    code.should contain("puts(l.upcase)")
   end
 
   it "emits conditional print for --select" do
-    code = generate_code(make_opts(mode_n: true, select_cond: "line =~ /x/", body_code: ""))
-    code.should contain("puts line if line =~ /x/")
+    code = generate_code(make_opts(mode_n: true, select_cond: "l =~ /x/", body_code: ""))
+    code.should contain("puts l if l =~ /x/")
   end
 
   it "emits named field bindings when -N is used" do
@@ -498,10 +498,10 @@ describe "generate_code (ergonomic shortcuts)" do
   end
 
   it "emits aggregate counters for --sum/--count" do
-    code = generate_code(make_opts(mode_n: true, sum_expr: "line.to_i", count_mode: true, body_code: ""))
+    code = generate_code(make_opts(mode_n: true, sum_expr: "l.to_i", count_mode: true, body_code: ""))
     code.should contain("__crys_sum = 0.0")
     code.should contain("__crys_count = 0_i64")
-    code.should contain("__crys_sum += (line.to_i).to_f")
+    code.should contain("__crys_sum += (l.to_i).to_f")
     code.should contain("__crys_count += 1")
     code.should contain("puts __crys_sum")
     code.should contain("puts __crys_count")
@@ -510,7 +510,7 @@ describe "generate_code (ergonomic shortcuts)" do
   it "does not auto-print aggregates when --final is provided" do
     code = generate_code(make_opts(
       mode_n: true,
-      sum_expr: "line.to_i",
+      sum_expr: "l.to_i",
       body_code: "",
       final_code: "puts __crys_sum"
     ))

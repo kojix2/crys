@@ -33,13 +33,13 @@ module Crys
 
   private def self.generate_autosplit(io : IO, regex : Bool = false) : Nil
     if regex
-      io << "  f = line.split(__crys_sep_re)\n"
+      io << "  f = l.split(__crys_sep_re)\n"
     else
       io << "  f =\n"
       io << "    if __crys_sep == \" \"\n"
-      io << "      line.split\n"
+      io << "      l.split\n"
       io << "    else\n"
-      io << "      line.split(__crys_sep)\n"
+      io << "      l.split(__crys_sep)\n"
       io << "    end\n"
     end
     io << "  nf = f.size\n"
@@ -47,13 +47,13 @@ module Crys
 
   private def self.generate_autosplit_indented(io : IO, regex : Bool, indent : String) : Nil
     if regex
-      io << "#{indent}f = line.split(__crys_sep_re)\n"
+      io << "#{indent}f = l.split(__crys_sep_re)\n"
     else
       io << "#{indent}f =\n"
       io << "#{indent}  if __crys_sep == \" \"\n"
-      io << "#{indent}    line.split\n"
+      io << "#{indent}    l.split\n"
       io << "#{indent}  else\n"
-      io << "#{indent}    line.split(__crys_sep)\n"
+      io << "#{indent}    l.split(__crys_sep)\n"
       io << "#{indent}  end\n"
     end
     io << "#{indent}nf = f.size\n"
@@ -84,14 +84,14 @@ module Crys
 
   private def self.emit_line_action(io : IO, opts : Options, indent : String) : Nil
     if !opts.select_cond.empty?
-      io << "#{indent}puts line if #{opts.select_cond}\n"
+      io << "#{indent}puts l if #{opts.select_cond}\n"
     elsif !opts.map_expr.empty?
       io << "#{indent}puts(#{opts.map_expr})\n"
     elsif opts.mode_p?
-      io << "#{indent}line = begin\n"
+      io << "#{indent}l = begin\n"
       append_indented_code(io, opts.body_code, indent + "  ")
       io << "#{indent}end\n"
-      io << "#{indent}puts line\n"
+      io << "#{indent}puts l\n"
     else
       append_indented_code(io, opts.body_code, indent)
     end
@@ -157,7 +157,7 @@ module Crys
     io << "    __crys_file.each_line do |__raw_line|\n"
     io << "      nr += 1\n"
     io << "      fnr += 1\n"
-    io << "      line = __raw_line.chomp\n"
+    io << "      l = __raw_line.chomp\n"
     emit_line_bindings(io, opts, "      ")
     emit_where_wrapped_action(io, opts, "      ")
     io << "    end\n"
@@ -169,7 +169,7 @@ module Crys
     io << "STDIN.each_line do |__raw_line|\n"
     io << "  nr += 1\n"
     io << "  fnr += 1\n"
-    io << "  line = __raw_line.chomp\n"
+    io << "  l = __raw_line.chomp\n"
     emit_line_bindings(io, opts, "  ")
     emit_where_wrapped_action(io, opts, "  ")
     io << "end\n"

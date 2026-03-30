@@ -6,17 +6,17 @@ module Crys
     HELP_SUMMARY_WIDTH = 24
     HELP_EXAMPLES      = <<-TEXT
   Examples:
-    crys -n 'puts line'
-    crys -p 'line.upcase'
+    crys -n 'puts l'
+    crys -p 'l.upcase'
     crys -a -F: 'puts f[1]'
-    crys --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
+    crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
     crys -r json 'pp JSON.parse(ARGF)'
-    crys -pi.bak 'line.gsub("foo", "bar")' file.txt
+    crys -pi.bak 'l.gsub("foo", "bar")' file.txt
   TEXT
     HELP_NOTES = <<-TEXT
   Notes:
     Input lines are always chomped before your code runs.
-    Available variables: line, f, nf, nr, fnr, path, row.
+    Available variables: l, f, nf, nr, fnr, path, row.
     f and nf are available only with -a.
     row is available only with --header and maps column names to field values.
     --sum and --count print their totals automatically unless --final is given.
@@ -191,7 +191,7 @@ module Crys
       opts.map_expr = expr
       opts.mode_n = true
     end
-    parser.on("--select COND", "Print the line when COND is true") do |cond|
+    parser.on("--select COND", "Print l when COND is true") do |cond|
       opts.select_cond = cond
       opts.mode_n = true
     end
