@@ -207,17 +207,7 @@ module Crys
     generate_path_binding(io, opts)
     generate_init_code(io, opts)
 
-    if opts.slurp?
-      if reads_from_files?(opts)
-        io << "ARGV.each do |path|\n"
-        io << "  input = File.read(path)\n\n"
-        append_indented_code(io, opts.body_code, "  ")
-        io << "end\n"
-      else
-        io << "input = STDIN.gets_to_end\n\n"
-        io << opts.body_code << "\n"
-      end
-    elsif opts.mode_n?
+    if opts.mode_n?
       generate_line_mode(io, opts)
     else
       if reads_from_files?(opts)

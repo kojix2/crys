@@ -49,10 +49,10 @@ Auto-split input with regex separator:
 printf 'a:  b\nc:   d\n' | crys -a -F'/: +/' 'puts f[1]'
 ```
 
-Slurp all input:
+Read a full JSON document from input:
 
 ```sh
-printf '{"a":1}' | crys -r json -g 'puts JSON.parse(input)["a"].as_i'
+printf '{"a":1}' | crys -r json 'puts JSON.parse(ARGF)["a"].as_i'
 ```
 
 Run setup and teardown code:
@@ -120,7 +120,6 @@ printf '1\nfoo\n3\n' | crys --where 'line =~ /^[0-9]+$/' --sum 'line.to_i' --cou
 - `--header`: treat first row as header and expose `row` hash (requires `-a`)
 - `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
 - `--count`: count selected rows; exposes `__crys_count`
-- `-g`, `--slurp`: read all input into `input`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
 - `-r LIB`: add `require "LIB"`. Repeatable
 - `--init CODE`: insert code before the main body or loop
@@ -138,7 +137,6 @@ Implicit variables:
 - `nf`: number of fields (`f.size`), only with `-a`
 - `nr`: record number (global, counts across all files)
 - `fnr`: per-file record number (same as `nr` for stdin, resets to 1 at each new file)
-- `input`: full slurped input, only with `-g` or `--slurp`
 - `path`: current file path when reading files or editing in place
 - `row`: `Hash(String, String)` mapped from header columns, only with `--header`
 
@@ -146,7 +144,6 @@ Generated programs are cached under `CRYS_HOME/cache` and reused when the genera
 
 Constraints:
 
-- `-g` / `--slurp` cannot be combined with `-n` / `-p`
 - `-i` requires at least one file
 - `--map` and `--select` cannot be combined
 - `--map` / `--select` cannot be combined with explicit `CRYSTAL_CODE`

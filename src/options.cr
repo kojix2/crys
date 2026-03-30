@@ -7,7 +7,6 @@ module Crys
     property? mode_n : Bool = false
     property? mode_p : Bool = false
     property? autosplit : Bool = false
-    property? slurp : Bool = false
     property split_sep : String = ""
     property init_code : String = ""
     property final_code : String = ""
@@ -41,7 +40,7 @@ module Crys
     crys -p 'line.upcase'
     crys -a -F: 'puts f[1]'
     crys --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
-    crys -r json -g 'pp JSON.parse(input)'
+    crys -r json 'pp JSON.parse(ARGF)'
     crys -pi.bak 'line.gsub("foo", "bar")' file.txt
 
   Options:
@@ -56,7 +55,6 @@ module Crys
     --header        Treat first row as header and expose row hash (requires -a)
     --sum EXPR      Sum EXPR across selected rows (__crys_sum)
     --count         Count selected rows (__crys_count)
-    -g, --slurp     Read all input into input
     -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
     -r LIB          Add require "LIB" (repeatable)
     --init CODE     Insert CODE before the main body/loop
@@ -70,7 +68,7 @@ module Crys
 
   Notes:
     * line is always chomped.
-    * Implicit variables: line, f, nf, nr, fnr, path, input, row
+    * Implicit variables: line, f, nf, nr, fnr, path, row
     * nf: number of fields (only with -a). fnr: per-file line number (same as nr for stdin)
     * row: Hash(String, String) from header columns (only with --header)
     * --sum/--count auto-print at end when --final is not specified.
@@ -147,7 +145,6 @@ module Crys
   end
 
   private def self.validate_mode_combinations(opts : Options) : Nil
-    raise ArgumentError.new("-g/--slurp cannot be combined with -n/-p") if opts.slurp? && opts.mode_n?
     raise ArgumentError.new("-i requires at least one file") if !opts.inplace_suffix.nil? && opts.files.empty?
     raise ArgumentError.new("--map and --select cannot be combined") if !opts.map_expr.empty? && !opts.select_cond.empty?
     raise ArgumentError.new("--map cannot be combined with -p") if !opts.map_expr.empty? && opts.mode_p?
@@ -226,7 +223,6 @@ module Crys
       opts.count_mode = true
       opts.mode_n = true
     end
-    parser.on("-g", "--slurp", "Read all input into input") { opts.slurp = true }
     parser.on("-r LIB", "Require library") { |req| opts.requires << req }
     parser.on("--init CODE", "Code before loop") { |code| opts.init_code = code }
     parser.on("--final CODE", "Code after loop") { |code| opts.final_code = code }

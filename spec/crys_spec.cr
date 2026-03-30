@@ -20,7 +20,6 @@ private def make_opts(
   mode_n : Bool = false,
   mode_p : Bool = false,
   autosplit : Bool = false,
-  slurp : Bool = false,
   split_sep : String = "",
   init_code : String = "",
   final_code : String = "",
@@ -40,7 +39,6 @@ private def make_opts(
   o.mode_n = mode_n || mode_p
   o.mode_p = mode_p
   o.autosplit = autosplit
-  o.slurp = slurp
   o.split_sep = split_sep
   o.init_code = init_code
   o.final_code = final_code
@@ -134,19 +132,6 @@ describe "generate_code" do
     code.should_not contain("f =")
   end
 
-  # ── slurp ─────────────────────────────────────────────────────────────────
-
-  it "emits gets_to_end and input variable for -g" do
-    code = generate_code(make_opts(slurp: true, body_code: "puts input.size"))
-    code.should contain("STDIN.gets_to_end")
-    code.should contain("input")
-  end
-
-  it "-g does not emit each_line" do
-    code = generate_code(make_opts(slurp: true, body_code: "puts input"))
-    code.should_not contain("each_line")
-  end
-
   # ── init / final ──────────────────────────────────────────────────────────
 
   it "--init inserts code before body" do
@@ -200,24 +185,12 @@ describe "generate_code" do
     code.should contain("File.open(path)")
     code.should contain("__crys_file.each_line")
   end
-
-  it "reads each file separately in slurp mode when files are specified" do
-    code = generate_code(make_opts(slurp: true, files: ["a.txt", "b.txt"]))
-    code.should contain("ARGV.each do |path|")
-    code.should contain("input = File.read(path)")
-  end
 end
 
 describe "parse_args" do
   it "raises ArgumentError when body_code is missing" do
     expect_raises(ArgumentError, /missing Crystal code/) do
       parse_args([] of String)
-    end
-  end
-
-  it "raises ArgumentError when -g and -n are combined" do
-    expect_raises(ArgumentError, /cannot be combined/) do
-      parse_args(["-g", "-n", "puts line"])
     end
   end
 
@@ -242,11 +215,6 @@ describe "parse_args" do
     opts.autosplit?.should be_true
     opts.split_sep.should eq(" ")
     opts.mode_n?.should be_true
-  end
-
-  it "--slurp enables slurp mode" do
-    opts = parse_args(["--slurp", "puts input"])
-    opts.slurp?.should be_true
   end
 
   it "-r multiple times fills requires array" do
@@ -421,11 +389,6 @@ describe "generate_code (fnr / nf / regex separator)" do
     code.should contain("fnr = 0")
     code.should contain("fnr += 1")
     code.should_not contain("__crys_last_path")
-  end
-
-  it "does not emit fnr in slurp mode" do
-    code = generate_code(make_opts(slurp: true, body_code: "puts input"))
-    code.should_not contain("fnr")
   end
 
   # ── nf ────────────────────────────────────────────────────────────────────

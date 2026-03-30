@@ -116,14 +116,10 @@ run_cmd_with_stdin $'a\tb\n' "$BIN" -a -F $'\t' 'puts f[1]'
 assert_status 0
 assert_stdout_eq 'b'
 
-printf 'Testing slurp and requires...\n'
-run_cmd_with_stdin '{"a":1,"b":2}' "$BIN" -r json -g 'puts JSON.parse(input)["b"].as_i'
+printf 'Testing requires...\n'
+run_cmd_with_stdin '{"a":1,"b":2}' "$BIN" -r json 'puts JSON.parse(ARGF)["b"].as_i'
 assert_status 0
 assert_stdout_eq '2'
-
-run_cmd_with_stdin 'hello world' "$BIN" --slurp 'puts input.size'
-assert_status 0
-assert_stdout_eq '11'
 
 printf 'Testing init/final and dump...\n'
 run_cmd_with_stdin '1\n2\n3\n' "$BIN" --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
@@ -195,10 +191,6 @@ assert_file_eq "$TEST_DIR/inplace.txt" $'FOO\nBAR'
 [[ ! -e "$TEST_DIR/inplace.txt".bak ]] || fail 'unexpected backup file for -i without suffix'
 
 printf 'Testing invalid combinations...\n'
-run_cmd "$BIN" -g -n 'puts line'
-assert_status 1
-assert_stderr_contains '-g/--slurp cannot be combined with -n/-p'
-
 run_cmd "$BIN" -i -p 'line.upcase'
 assert_status 1
 assert_stderr_contains '-i requires at least one file'
