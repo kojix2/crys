@@ -91,6 +91,20 @@ Bind split fields to names:
 printf 'alice:20\nbob:30\n' | crys -a -F: -N name,age 'puts "#{name}:#{age}"'
 ```
 
+Use header-based access:
+
+```sh
+printf 'name,age\nalice,20\n' | crys -a -F, --header --map 'row["name"]'
+```
+
+Aggregate quickly without boilerplate:
+
+```sh
+printf '1\n2\n3\n' | crys --sum 'line.to_i'
+printf 'ok\nerr\nwarn\n' | crys --where 'line =~ /err|warn/' --count
+printf '1\nfoo\n3\n' | crys --where 'line =~ /^[0-9]+$/' --sum 'line.to_i' --count
+```
+
 ## Options
 
 - `-n`: read input line by line. Exposes `line`, `nr`, and `fnr`
@@ -101,6 +115,9 @@ printf 'alice:20\nbob:30\n' | crys -a -F: -N name,age 'puts "#{name}:#{age}"'
 - `--where COND`: pre-filter condition in line mode. Repeatable, combined with AND
 - `--map EXPR`: shortcut for line mode mapping (`puts(EXPR)`)
 - `--select COND`: shortcut for line mode filtering (`puts line if COND`)
+- `--header`: treat first row as header and expose `row` hash (requires `-a`)
+- `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
+- `--count`: count selected rows; exposes `__crys_count`
 - `-g`, `--slurp`: read all input into `input`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
 - `-r LIB`: add `require "LIB"`. Repeatable
@@ -121,6 +138,7 @@ Implicit variables:
 - `fnr`: per-file record number (same as `nr` for stdin, resets to 1 at each new file)
 - `input`: full slurped input, only with `-g` or `--slurp`
 - `path`: current file path when reading files or editing in place
+- `row`: `Hash(String, String)` mapped from header columns, only with `--header`
 
 Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
 
@@ -131,6 +149,8 @@ Constraints:
 - `--map` and `--select` cannot be combined
 - `--map` / `--select` cannot be combined with explicit `CRYSTAL_CODE`
 - `-N` requires `-a`
+- `--header` requires `-a`
+- `--sum` / `--count` cannot be combined with explicit `CRYSTAL_CODE`
 
 ## Development
 

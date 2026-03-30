@@ -23,6 +23,9 @@ class Options
   property map_expr : String = ""
   property select_cond : String = ""
   property named_fields : Array(String) = [] of String
+  property? header_mode : Bool = false
+  property sum_expr : String = ""
+  property? count_mode : Bool = false
 
   def initialize
     @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
@@ -51,6 +54,9 @@ USAGE = <<-USAGE
     --where COND    Pre-filter lines with COND (repeatable; AND semantics)
     --map EXPR      Shortcut for line mode: puts(EXPR)
     --select COND   Shortcut for line mode: puts line if COND
+    --header        Treat first row as header and expose row hash (requires -a)
+    --sum EXPR      Sum EXPR across selected rows (__crys_sum)
+    --count         Count selected rows (__crys_count)
     -g, --slurp     Read all input into input
     -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
     -r LIB          Add require "LIB" (repeatable)
@@ -64,8 +70,10 @@ USAGE = <<-USAGE
 
   Notes:
     * line is always chomped.
-    * Implicit variables: line, f, nf, nr, fnr, path, input
+    * Implicit variables: line, f, nf, nr, fnr, path, input, row
     * nf: number of fields (only with -a). fnr: per-file line number (same as nr for stdin)
+    * row: Hash(String, String) from header columns (only with --header)
+    * --sum/--count auto-print at end when --final is not specified.
     * Dependencies are resolved from CRYS_HOME (default: ~/.local/share/crys).
     * Manage shard.yml / shards install there manually.
   USAGE
@@ -118,8 +126,12 @@ private def finalize_options(opts : Options, remaining : Array(String)) : Option
     opts.mode_n = true
   end
 
+  if (!opts.sum_expr.empty? || opts.count_mode?) && !opts.mode_n?
+    opts.mode_n = true
+  end
+
   if remaining.empty?
-    if opts.map_expr.empty? && opts.select_cond.empty?
+    if opts.map_expr.empty? && opts.select_cond.empty? && opts.sum_expr.empty? && !opts.count_mode?
       raise ArgumentError.new("missing Crystal code")
     end
 
@@ -159,8 +171,16 @@ private def validate_options(opts : Options) : Nil
     raise ArgumentError.new("--map/--select do not take CRYSTAL_CODE argument")
   end
 
+  if (!opts.sum_expr.empty? || opts.count_mode?) && !opts.body_code.empty?
+    raise ArgumentError.new("--sum/--count do not take CRYSTAL_CODE argument")
+  end
+
   if !opts.named_fields.empty? && !opts.autosplit?
     raise ArgumentError.new("-N requires -a")
+  end
+
+  if opts.header_mode? && !opts.autosplit?
+    raise ArgumentError.new("--header requires -a")
   end
 
   opts.named_fields.each do |name|
@@ -204,6 +224,17 @@ def parse_args(argv : Array(String)) : Options
   end
   parser.on("--select COND", "Shortcut: puts line if COND") do |cond|
     opts.select_cond = cond
+    opts.mode_n = true
+  end
+  parser.on("--header", "Treat first row as header and expose row") do
+    opts.header_mode = true
+  end
+  parser.on("--sum EXPR", "Sum EXPR across selected rows") do |expr|
+    opts.sum_expr = expr
+    opts.mode_n = true
+  end
+  parser.on("--count", "Count selected rows") do
+    opts.count_mode = true
     opts.mode_n = true
   end
   parser.on("-g", "--slurp", "Read all input into input") { opts.slurp = true }
@@ -326,6 +357,23 @@ private def generate_named_fields(io : IO, opts : Options, indent : String) : Ni
   end
 end
 
+private def generate_header_row(io : IO, indent : String) : Nil
+  io << "#{indent}if !__crys_have_header\n"
+  io << "#{indent}  __crys_headers = f.map(&.to_s)\n"
+  io << "#{indent}  __crys_have_header = true\n"
+  io << "#{indent}  next\n"
+  io << "#{indent}end\n"
+  io << "#{indent}row = Hash(String, String).new\n"
+  io << "#{indent}__crys_headers.each_with_index do |__crys_h, __crys_i|\n"
+  io << "#{indent}  row[__crys_h] = f[__crys_i]? || \"\"\n"
+  io << "#{indent}end\n"
+end
+
+private def emit_aggregate_actions(io : IO, opts : Options, indent : String) : Nil
+  io << "#{indent}__crys_sum += (#{opts.sum_expr}).to_f\n" unless opts.sum_expr.empty?
+  io << "#{indent}__crys_count += 1\n" if opts.count_mode?
+end
+
 private def emit_line_action(io : IO, opts : Options, indent : String) : Nil
   if !opts.select_cond.empty?
     io << "#{indent}puts line if #{opts.select_cond}\n"
@@ -341,15 +389,21 @@ private def emit_line_action(io : IO, opts : Options, indent : String) : Nil
   end
 end
 
+private def has_main_action?(opts : Options) : Bool
+  !opts.select_cond.empty? || !opts.map_expr.empty? || opts.mode_p? || !opts.body_code.empty?
+end
+
 private def emit_where_wrapped_action(io : IO, opts : Options, indent : String) : Nil
   if opts.where_conditions.empty?
-    emit_line_action(io, opts, indent)
+    emit_aggregate_actions(io, opts, indent)
+    emit_line_action(io, opts, indent) if has_main_action?(opts)
     return
   end
 
   cond = opts.where_conditions.map { |c| "(#{c})" }.join(" && ")
   io << "#{indent}if #{cond}\n"
-  emit_line_action(io, opts, indent + "  ")
+  emit_aggregate_actions(io, opts, indent + "  ")
+  emit_line_action(io, opts, indent + "  ") if has_main_action?(opts)
   io << "#{indent}end\n"
 end
 
@@ -363,11 +417,21 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
     end
   end
 
+  if opts.header_mode?
+    io << "__crys_headers = [] of String\n"
+    io << "__crys_have_header = false\n\n"
+  end
+
+  io << "__crys_sum = 0.0\n" unless opts.sum_expr.empty?
+  io << "__crys_count = 0_i64\n" if opts.count_mode?
+  io << "\n" unless opts.sum_expr.empty? && !opts.count_mode?
+
   io << "nr = 0\n"
   io << "fnr = 0\n"
   if reads_from_files?(opts)
     io << "ARGV.each do |path|\n"
     io << "  fnr = 0\n"
+    io << "  __crys_have_header = false\n" if opts.header_mode?
     io << "  File.open(path) do |__crys_file|\n"
     io << "    __crys_file.each_line do |__raw_line|\n"
     io << "      nr += 1\n"
@@ -377,6 +441,7 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
     if opts.autosplit?
       generate_autosplit_indented(io, opts.split_regex?, "      ")
       generate_named_fields(io, opts, "      ")
+      generate_header_row(io, "      ") if opts.header_mode?
     end
 
     emit_where_wrapped_action(io, opts, "      ")
@@ -393,6 +458,7 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
     if opts.autosplit?
       generate_autosplit(io, opts.split_regex?)
       generate_named_fields(io, opts, "  ")
+      generate_header_row(io, "  ") if opts.header_mode?
     end
 
     emit_where_wrapped_action(io, opts, "  ")
@@ -402,6 +468,12 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
 end
 
 private def generate_final_code(io : IO, opts : Options) : Nil
+  if (!opts.sum_expr.empty? || opts.count_mode?) && opts.final_code.empty?
+    io << "\n# --aggregate-final\n"
+    io << "puts __crys_sum\n" unless opts.sum_expr.empty?
+    io << "puts __crys_count\n" if opts.count_mode?
+  end
+
   return if opts.final_code.empty?
 
   io << "\n# --final\n"

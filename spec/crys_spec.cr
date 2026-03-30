@@ -17,6 +17,9 @@ private def make_opts(
   map_expr : String = "",
   select_cond : String = "",
   named_fields : Array(String) = [] of String,
+  header_mode : Bool = false,
+  sum_expr : String = "",
+  count_mode : Bool = false,
 ) : Options
   o = Options.new
   o.body_code = body_code
@@ -34,6 +37,9 @@ private def make_opts(
   o.map_expr = map_expr
   o.select_cond = select_cond
   o.named_fields = named_fields.dup
+  o.header_mode = header_mode
+  o.sum_expr = sum_expr
+  o.count_mode = count_mode
   o
 end
 
@@ -322,6 +328,35 @@ describe "parse_args" do
     end
   end
 
+  it "--header enables header mode" do
+    opts = parse_args(["-a", "--header", "puts row[\"name\"]"])
+    opts.header_mode?.should be_true
+  end
+
+  it "raises ArgumentError when --header is used without -a" do
+    expect_raises(ArgumentError, /--header requires -a/) do
+      parse_args(["--header", "puts line"])
+    end
+  end
+
+  it "--sum enables mode_n and stores expression" do
+    opts = parse_args(["--sum", "line.to_i"])
+    opts.mode_n?.should be_true
+    opts.sum_expr.should eq("line.to_i")
+  end
+
+  it "--count enables mode_n" do
+    opts = parse_args(["--count"])
+    opts.mode_n?.should be_true
+    opts.count_mode?.should be_true
+  end
+
+  it "raises ArgumentError when --sum has a body code argument" do
+    expect_raises(ArgumentError, /--sum\/--count do not take CRYSTAL_CODE/) do
+      parse_args(["--sum", "line.to_i", "puts line"])
+    end
+  end
+
   # ── regex -F ──────────────────────────────────────────────────────────────
 
   it "-F/: +/ sets split_regex and stores the inner pattern" do
@@ -446,6 +481,41 @@ describe "generate_code (ergonomic shortcuts)" do
 
     code.should contain("name = f[0]?")
     code.should contain("count = f[1]?")
+  end
+
+  it "emits header parsing and row hash for --header" do
+    code = generate_code(make_opts(
+      mode_n: true,
+      autosplit: true,
+      split_sep: ",",
+      header_mode: true,
+      body_code: "puts row[\"name\"]?"
+    ))
+
+    code.should contain("__crys_headers = [] of String")
+    code.should contain("if !__crys_have_header")
+    code.should contain("row = Hash(String, String).new")
+  end
+
+  it "emits aggregate counters for --sum/--count" do
+    code = generate_code(make_opts(mode_n: true, sum_expr: "line.to_i", count_mode: true, body_code: ""))
+    code.should contain("__crys_sum = 0.0")
+    code.should contain("__crys_count = 0_i64")
+    code.should contain("__crys_sum += (line.to_i).to_f")
+    code.should contain("__crys_count += 1")
+    code.should contain("puts __crys_sum")
+    code.should contain("puts __crys_count")
+  end
+
+  it "does not auto-print aggregates when --final is provided" do
+    code = generate_code(make_opts(
+      mode_n: true,
+      sum_expr: "line.to_i",
+      body_code: "",
+      final_code: "puts __crys_sum"
+    ))
+
+    code.should_not contain("# --aggregate-final")
   end
 end
 

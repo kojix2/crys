@@ -256,6 +256,26 @@ run_cmd_with_stdin $'alice:20\nbob:30\n' "$BIN" -a -F: -N 'name,age' 'puts "#{na
 assert_status 0
 assert_stdout_eq $'alice:20\nbob:30'
 
+printf 'Testing --header row hash...\n'
+run_cmd_with_stdin $'name,age\nalice,20\nbob,30\n' "$BIN" -a -F, --header --map 'row["name"]'
+assert_status 0
+assert_stdout_eq $'alice\nbob'
+
+printf 'Testing --sum shortcut...\n'
+run_cmd_with_stdin $'1\n2\n3\n' "$BIN" --sum 'line.to_i'
+assert_status 0
+assert_stdout_eq '6.0'
+
+printf 'Testing --count shortcut...\n'
+run_cmd_with_stdin $'x\ny\nz\n' "$BIN" --count
+assert_status 0
+assert_stdout_eq '3'
+
+printf 'Testing --sum and --count with --where...\n'
+run_cmd_with_stdin $'1\nfoo\n3\nbar\n' "$BIN" --where 'line =~ /^[0-9]+$/' --sum 'line.to_i' --count
+assert_status 0
+assert_stdout_eq $'4.0\n2'
+
 printf 'Testing string separator backward compat with -F:...\n'
 run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
 assert_status 0
