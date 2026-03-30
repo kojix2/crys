@@ -65,7 +65,7 @@ Edit files in place:
 
 ```sh
 crys -I .bak -p 'l.gsub("foo", "bar")' file.txt
-crys -i 'l.upcase' file.txt
+crys -i -p 'l.upcase' file.txt
 ```
 
 Inspect generated code:
