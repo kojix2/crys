@@ -227,7 +227,7 @@ assert_status 0
 assert_stdout_eq $'3\n2'
 
 printf 'Testing regex separator -F/: +/...\n'
-run_cmd_with_stdin $'a:  b\nc:d\n' "$BIN" -a '-F/: +/' 'puts f[1]'
+run_cmd_with_stdin $'a:  b\nc: d\n' "$BIN" -a '-F/: +/' 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'b\nd'
 
