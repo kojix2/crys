@@ -2,6 +2,28 @@ require "option_parser"
 
 module Crys
   class Options
+    HELP_BANNER        = "Usage: crys [options] 'CRYSTAL_CODE' [file ...]"
+    HELP_SUMMARY_WIDTH = 24
+    HELP_EXAMPLES      = <<-TEXT
+  Examples:
+    crys -n 'puts line'
+    crys -p 'line.upcase'
+    crys -a -F: 'puts f[1]'
+    crys --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
+    crys -r json 'pp JSON.parse(ARGF)'
+    crys -pi.bak 'line.gsub("foo", "bar")' file.txt
+  TEXT
+    HELP_NOTES = <<-TEXT
+  Notes:
+    Input lines are always chomped before your code runs.
+    Available variables: line, f, nf, nr, fnr, path, row.
+    f and nf are available only with -a.
+    row is available only with --header and maps column names to field values.
+    --sum and --count print their totals automatically unless --final is given.
+    Dependencies are loaded from CRYS_HOME (default: ~/.local/share/crys).
+    Manage shard.yml and run shards install in CRYS_HOME manually.
+  TEXT
+
     property crys_home : String
     property level : String = "2"
     property? mode_n : Bool = false
@@ -31,82 +53,27 @@ module Crys
     end
   end
 
-  USAGE = <<-USAGE
-  Usage:
-    crys [options] 'CRYSTAL_CODE' [file ...]
-
-  Examples:
-    crys -n 'puts line'
-    crys -p 'line.upcase'
-    crys -a -F: 'puts f[1]'
-    crys --init 'sum = 0' -n 'sum += line.to_i' --final 'puts sum'
-    crys -r json 'pp JSON.parse(ARGF)'
-    crys -pi.bak 'line.gsub("foo", "bar")' file.txt
-
-  Options:
-    -n              Read input line by line. Exposes: line, nr, fnr
-    -p              Like -n, but assigns body result back to line and prints it
-    -a              Auto-split line into f, nf
-    -F SEP          Field separator for -a (default: " ", prefix '/' for regex: -F/: +/)
-    -N NAMES        Bind split fields to variables (e.g. -N name,count)
-    --where COND    Pre-filter lines with COND (repeatable; AND semantics)
-    --map EXPR      Shortcut for line mode: puts(EXPR)
-    --select COND   Shortcut for line mode: puts line if COND
-    --header        Treat first row as header and expose row hash (requires -a)
-    --sum EXPR      Sum EXPR across selected rows (__crys_sum)
-    --count         Count selected rows (__crys_count)
-    -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
-    -r LIB          Add require "LIB" (repeatable)
-    --init CODE     Insert CODE before the main body/loop
-    --final CODE    Insert CODE after the main body/loop
-    --dump          Print generated Crystal code and exit
-    -O LEVEL        Pass optimization level to crystal build (0,1,2,3,s,z)
-    --release       Pass --release to crystal build
-    --error-trace   Pass --error-trace to crystal build
-    --version       Show version
-    -h, --help      Show this help
-
-  Notes:
-    * line is always chomped.
-    * Implicit variables: line, f, nf, nr, fnr, path, row
-    * nf: number of fields (only with -a). fnr: per-file line number (same as nr for stdin)
-    * row: Hash(String, String) from header columns (only with --header)
-    * --sum/--count auto-print at end when --final is not specified.
-    * Dependencies are resolved from CRYS_HOME (default: ~/.local/share/crys).
-    * Manage shard.yml / shards install there manually.
-  USAGE
-
-  private def self.preprocess_args(argv : Array(String), opts : Options) : Array(String)
-    processed = [] of String
-    i = 0
-    while i < argv.size
-      arg = argv[i]
-      if arg.starts_with?("-i") && !arg.starts_with?("--")
-        opts.inplace_suffix = arg.bytesize == 2 ? "" : arg[2..]
-        i += 1
-        next
-      end
-      if arg.starts_with?("-F") && arg.bytesize > 2
-        raw = arg[2..]
-        if raw.starts_with?('/') && raw.ends_with?('/') && raw.bytesize >= 2
-          opts.split_sep = raw[1..-2]
-          opts.split_regex = true
-        else
-          opts.split_sep = raw
-        end
-        i += 1
-        next
-      end
-      if arg.starts_with?("-O") && arg.bytesize > 2
-        opts.level = arg[2..]
-        i += 1
-        next
-      end
-      processed << arg
-      i += 1
+  private def self.append_help_block(parser : OptionParser, block : String) : Nil
+    parser.separator ""
+    block.each_line(chomp: true) do |line|
+      parser.separator line
     end
+  end
 
-    processed
+  private def self.add_examples(parser : OptionParser) : Nil
+    append_help_block(parser, Options::HELP_EXAMPLES)
+  end
+
+  private def self.add_notes(parser : OptionParser) : Nil
+    append_help_block(parser, Options::HELP_NOTES)
+  end
+
+  def self.usage : String
+    opts = Options.new
+    remaining = [] of String
+    parser = OptionParser.new(gnu_optional_args: true)
+    configure_parser(parser, opts, remaining)
+    parser.to_s
   end
 
   private def self.apply_implicit_modes(opts : Options) : Nil
@@ -179,22 +146,36 @@ module Crys
     validate_field_names(opts)
   end
 
-  private def self.configure_parser(parser : OptionParser, opts : Options) : Nil
+  private def self.configure_parser(parser : OptionParser, opts : Options, remaining : Array(String)) : Nil
+    parser.banner = Options::HELP_BANNER
+    parser.summary_width = Options::HELP_SUMMARY_WIDTH
+    parser.separator ""
+    parser.separator "Options:"
+    parser.invalid_option do |flag|
+      raise ArgumentError.new("invalid option: #{flag}")
+    end
+    parser.missing_option do |flag|
+      raise ArgumentError.new("missing option: #{flag}")
+    end
+    parser.unknown_args do |args, after_dash|
+      remaining.concat(args)
+      remaining.concat(after_dash)
+    end
     parser.on("-h", "--help", "Show this help") do
-      puts USAGE
+      puts parser
       exit 0
     end
     parser.on("--version", "Show version") do
       puts "crys #{VERSION}"
       exit 0
     end
-    parser.on("-n", "Line loop") { opts.mode_n = true }
-    parser.on("-p", "Line loop with print") do
+    parser.on("-n", "Run CODE for each input line") { opts.mode_n = true }
+    parser.on("-p", "Replace each line with CODE result and print it") do
       opts.mode_p = true
       opts.mode_n = true
     end
-    parser.on("-a", "Auto-split line into f") { opts.autosplit = true }
-    parser.on("-F SEP", "Field separator") do |sep|
+    parser.on("-a", "Split each line into f and nf") { opts.autosplit = true }
+    parser.on("-F SEP", "Use SEP as field separator for -a") do |sep|
       if sep.starts_with?('/') && sep.ends_with?('/') && sep.bytesize >= 2
         opts.split_sep = sep[1..-2]
         opts.split_regex = true
@@ -202,20 +183,20 @@ module Crys
         opts.split_sep = sep
       end
     end
-    parser.on("-N NAMES", "Bind split fields to variables") do |names|
+    parser.on("-N NAMES", "Bind split fields to variables, e.g. name,count") do |names|
       opts.named_fields = names.split(',').map(&.strip).reject(&.empty?)
     end
-    parser.on("--where COND", "Pre-filter lines (repeatable)") { |cond| opts.where_conditions << cond }
-    parser.on("--map EXPR", "Shortcut: puts(EXPR)") do |expr|
+    parser.on("--where COND", "Process only lines where COND is true") { |cond| opts.where_conditions << cond }
+    parser.on("--map EXPR", "Print EXPR for each selected line") do |expr|
       opts.map_expr = expr
       opts.mode_n = true
     end
-    parser.on("--select COND", "Shortcut: puts line if COND") do |cond|
+    parser.on("--select COND", "Print the line when COND is true") do |cond|
       opts.select_cond = cond
       opts.mode_n = true
     end
-    parser.on("--header", "Treat first row as header and expose row") { opts.header_mode = true }
-    parser.on("--sum EXPR", "Sum EXPR across selected rows") do |expr|
+    parser.on("--header", "Use the first split row as headers and expose row") { opts.header_mode = true }
+    parser.on("--sum EXPR", "Add EXPR to a running total for selected lines") do |expr|
       opts.sum_expr = expr
       opts.mode_n = true
     end
@@ -223,22 +204,26 @@ module Crys
       opts.count_mode = true
       opts.mode_n = true
     end
-    parser.on("-r LIB", "Require library") { |req| opts.requires << req }
-    parser.on("--init CODE", "Code before loop") { |code| opts.init_code = code }
-    parser.on("--final CODE", "Code after loop") { |code| opts.final_code = code }
-    parser.on("--dump", "Print generated Crystal code and exit") { opts.dump_only = true }
-    parser.on("-O LEVEL", "Pass optimization level to crystal") { |level| opts.level = level }
-    parser.on("--release", "Pass --release to crystal") { opts.crystal_flags << "--release" }
-    parser.on("--error-trace", "Pass --error-trace to crystal") { opts.crystal_flags << "--error-trace" }
+    parser.on("-i[SUFFIX]", "Edit files in place, optionally keeping backups") do |suffix|
+      opts.inplace_suffix = suffix
+    end
+    parser.on("-r LIB", "Add require \"LIB\" to the generated program") { |req| opts.requires << req }
+    parser.on("--init CODE", "Run CODE before processing input") { |code| opts.init_code = code }
+    parser.on("--final CODE", "Run CODE after processing input") { |code| opts.final_code = code }
+    parser.on("--dump", "Print the generated Crystal program and exit") { opts.dump_only = true }
+    parser.on("-O LEVEL", "Build with crystal optimization level LEVEL") { |level| opts.level = level }
+    parser.on("--release", "Build with crystal --release") { opts.crystal_flags << "--release" }
+    parser.on("--error-trace", "Build with crystal --error-trace") { opts.crystal_flags << "--error-trace" }
+    add_examples(parser)
+    add_notes(parser)
   end
 
   def self.parse_args(argv : Array(String)) : Options
     opts = Options.new
-    parser = OptionParser.new
-    configure_parser(parser, opts)
-
-    processed = preprocess_args(argv, opts)
-    parser.parse(processed)
-    finalize_options(opts, processed)
+    remaining = [] of String
+    parser = OptionParser.new(gnu_optional_args: true)
+    configure_parser(parser, opts, remaining)
+    parser.parse(argv.dup)
+    finalize_options(opts, remaining)
   end
 end

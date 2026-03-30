@@ -5,6 +5,6 @@ begin
   Crys.run(opts)
 rescue e : ArgumentError
   STDERR.puts "crys: #{e.message}"
-  STDERR.puts Crys::USAGE
+  STDERR.puts Crys.usage
   exit 1
 end

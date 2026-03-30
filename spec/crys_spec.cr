@@ -259,6 +259,18 @@ describe "parse_args" do
     end
   end
 
+  it "raises ArgumentError for invalid options" do
+    expect_raises(ArgumentError, /invalid option: --nope/) do
+      parse_args(["--nope"])
+    end
+  end
+
+  it "raises ArgumentError when an option argument is missing" do
+    expect_raises(ArgumentError, /missing option: -F/) do
+      parse_args(["-F"])
+    end
+  end
+
   it "-i.bak sets inplace_suffix to .bak" do
     opts = parse_args(["-i.bak", "puts line", "file.txt"])
     opts.inplace_suffix.should eq(".bak")
