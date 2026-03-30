@@ -131,7 +131,7 @@ printf '1\nfoo\n3\n' | crys --where 'line =~ /^[0-9]+$/' --sum 'line.to_i' --cou
 - `--version`: show tool version
 - `-h`, `--help`: show help
 
-Implicit variables:
+## Implicit Variables
 
 - `line`: current line, always chomped
 - `f`: split fields, only with `-a`
@@ -140,8 +140,6 @@ Implicit variables:
 - `fnr`: per-file record number (same as `nr` for stdin, resets to 1 at each new file)
 - `path`: current file path when reading files or editing in place
 - `row`: `Hash(String, String)` mapped from header columns, only with `--header`
-
-Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
 
 ## Dependency Resolution (CRYS_HOME)
 
@@ -165,7 +163,11 @@ Then:
 printf '{"a":1}' | crys -r json 'puts JSON.parse(ARGF)["a"].as_i'
 ```
 
-Constraints:
+## Caching
+
+Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
+
+## Constraints
 
 - `-i` requires at least one file
 - `--map` and `--select` cannot be combined
