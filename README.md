@@ -1,8 +1,10 @@
 # crys
 
+[![test](https://github.com/kojix2/crys/actions/workflows/test.yml/badge.svg)](https://github.com/kojix2/crys/actions/workflows/test.yml)
+
 A Crystal one-liner tool.
 
-[![test](https://github.com/kojix2/crys/actions/workflows/test.yml/badge.svg)](https://github.com/kojix2/crys/actions/workflows/test.yml)
+:construction: Very early stage
 
 ## Installation
 
