@@ -19,6 +19,10 @@ class Options
   property? dump_only : Bool = false
   property inplace_suffix : String?
   property? split_regex : Bool = false
+  property where_conditions : Array(String) = [] of String
+  property map_expr : String = ""
+  property select_cond : String = ""
+  property named_fields : Array(String) = [] of String
 
   def initialize
     @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
@@ -43,6 +47,10 @@ USAGE = <<-USAGE
     -p              Like -n, but assigns body result back to line and prints it
     -a              Auto-split line into f, nf
     -F SEP          Field separator for -a (default: " ", prefix '/' for regex: -F/: +/)
+    -N NAMES        Bind split fields to variables (e.g. -N name,count)
+    --where COND    Pre-filter lines with COND (repeatable; AND semantics)
+    --map EXPR      Shortcut for line mode: puts(EXPR)
+    --select COND   Shortcut for line mode: puts line if COND
     -g, --slurp     Read all input into input
     -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
     -r LIB          Add require "LIB" (repeatable)
@@ -106,12 +114,20 @@ private def finalize_options(opts : Options, remaining : Array(String)) : Option
     opts.mode_n = true
   end
 
-  if remaining.empty?
-    raise ArgumentError.new("missing Crystal code")
+  if !opts.where_conditions.empty? && !opts.mode_n?
+    opts.mode_n = true
   end
 
-  opts.body_code = remaining[0]
-  opts.files = remaining[1..] if remaining.size > 1
+  if remaining.empty?
+    if opts.map_expr.empty? && opts.select_cond.empty?
+      raise ArgumentError.new("missing Crystal code")
+    end
+
+    opts.body_code = ""
+  else
+    opts.body_code = remaining[0]
+    opts.files = remaining[1..] if remaining.size > 1
+  end
 
   validate_options(opts)
 
@@ -125,6 +141,32 @@ private def validate_options(opts : Options) : Nil
 
   if !opts.inplace_suffix.nil? && opts.files.empty?
     raise ArgumentError.new("-i requires at least one file")
+  end
+
+  if !opts.map_expr.empty? && !opts.select_cond.empty?
+    raise ArgumentError.new("--map and --select cannot be combined")
+  end
+
+  if !opts.map_expr.empty? && opts.mode_p?
+    raise ArgumentError.new("--map cannot be combined with -p")
+  end
+
+  if !opts.select_cond.empty? && opts.mode_p?
+    raise ArgumentError.new("--select cannot be combined with -p")
+  end
+
+  if (!opts.map_expr.empty? || !opts.select_cond.empty?) && !opts.body_code.empty?
+    raise ArgumentError.new("--map/--select do not take CRYSTAL_CODE argument")
+  end
+
+  if !opts.named_fields.empty? && !opts.autosplit?
+    raise ArgumentError.new("-N requires -a")
+  end
+
+  opts.named_fields.each do |name|
+    unless name.matches?(/^[a-z_][a-zA-Z0-9_]*$/)
+      raise ArgumentError.new("invalid field name for -N: #{name}")
+    end
   end
 end
 
@@ -149,6 +191,20 @@ def parse_args(argv : Array(String)) : Options
     else
       opts.split_sep = sep
     end
+  end
+  parser.on("-N NAMES", "Bind split fields to variables") do |names|
+    opts.named_fields = names.split(',').map(&.strip).reject(&.empty?)
+  end
+  parser.on("--where COND", "Pre-filter lines (repeatable)") do |cond|
+    opts.where_conditions << cond
+  end
+  parser.on("--map EXPR", "Shortcut: puts(EXPR)") do |expr|
+    opts.map_expr = expr
+    opts.mode_n = true
+  end
+  parser.on("--select COND", "Shortcut: puts line if COND") do |cond|
+    opts.select_cond = cond
+    opts.mode_n = true
   end
   parser.on("-g", "--slurp", "Read all input into input") { opts.slurp = true }
   parser.on("-r LIB", "Require library") do |req|
@@ -250,6 +306,53 @@ private def generate_autosplit(io : IO, regex : Bool = false) : Nil
   io << "  nf = f.size\n"
 end
 
+private def generate_autosplit_indented(io : IO, regex : Bool, indent : String) : Nil
+  if regex
+    io << "#{indent}f = line.split(__crys_sep_re)\n"
+  else
+    io << "#{indent}f =\n"
+    io << "#{indent}  if __crys_sep == \" \"\n"
+    io << "#{indent}    line.split\n"
+    io << "#{indent}  else\n"
+    io << "#{indent}    line.split(__crys_sep)\n"
+    io << "#{indent}  end\n"
+  end
+  io << "#{indent}nf = f.size\n"
+end
+
+private def generate_named_fields(io : IO, opts : Options, indent : String) : Nil
+  opts.named_fields.each_with_index do |name, index|
+    io << "#{indent}#{name} = f[#{index}]?\n"
+  end
+end
+
+private def emit_line_action(io : IO, opts : Options, indent : String) : Nil
+  if !opts.select_cond.empty?
+    io << "#{indent}puts line if #{opts.select_cond}\n"
+  elsif !opts.map_expr.empty?
+    io << "#{indent}puts(#{opts.map_expr})\n"
+  elsif opts.mode_p?
+    io << "#{indent}line = begin\n"
+    append_indented_code(io, opts.body_code, indent + "  ")
+    io << "#{indent}end\n"
+    io << "#{indent}puts line\n"
+  else
+    append_indented_code(io, opts.body_code, indent)
+  end
+end
+
+private def emit_where_wrapped_action(io : IO, opts : Options, indent : String) : Nil
+  if opts.where_conditions.empty?
+    emit_line_action(io, opts, indent)
+    return
+  end
+
+  cond = opts.where_conditions.map { |c| "(#{c})" }.join(" && ")
+  io << "#{indent}if #{cond}\n"
+  emit_line_action(io, opts, indent + "  ")
+  io << "#{indent}end\n"
+end
+
 private def generate_line_mode(io : IO, opts : Options) : Nil
   if opts.autosplit?
     if opts.split_regex?
@@ -272,27 +375,11 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
     io << "      line = __raw_line.chomp\n"
 
     if opts.autosplit?
-      if opts.split_regex?
-        io << "      f = line.split(__crys_sep_re)\n"
-      else
-        io << "      f =\n"
-        io << "        if __crys_sep == \" \"\n"
-        io << "          line.split\n"
-        io << "        else\n"
-        io << "          line.split(__crys_sep)\n"
-        io << "        end\n"
-      end
-      io << "      nf = f.size\n"
+      generate_autosplit_indented(io, opts.split_regex?, "      ")
+      generate_named_fields(io, opts, "      ")
     end
 
-    if opts.mode_p?
-      io << "      line = begin\n"
-      append_indented_code(io, opts.body_code, "        ")
-      io << "      end\n"
-      io << "      puts line\n"
-    else
-      append_indented_code(io, opts.body_code, "      ")
-    end
+    emit_where_wrapped_action(io, opts, "      ")
 
     io << "    end\n"
     io << "  end\n"
@@ -303,16 +390,12 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
     io << "  fnr += 1\n"
     io << "  line = __raw_line.chomp\n"
 
-    generate_autosplit(io, opts.split_regex?) if opts.autosplit?
-
-    if opts.mode_p?
-      io << "  line = begin\n"
-      append_indented_code(io, opts.body_code, "    ")
-      io << "  end\n"
-      io << "  puts line\n"
-    else
-      append_indented_code(io, opts.body_code, "  ")
+    if opts.autosplit?
+      generate_autosplit(io, opts.split_regex?)
+      generate_named_fields(io, opts, "  ")
     end
+
+    emit_where_wrapped_action(io, opts, "  ")
 
     io << "end\n"
   end

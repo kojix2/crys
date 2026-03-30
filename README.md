@@ -72,12 +72,35 @@ Inspect generated code:
 crys --dump -p 'line.upcase'
 ```
 
+Filter lines with repeatable preconditions:
+
+```sh
+printf 'ok\nerror\nwarn\n' | crys -n --where 'line =~ /err|warn/' 'puts line'
+```
+
+Use shortcut selectors and mappers:
+
+```sh
+printf 'a\nb\n' | crys --select 'line == "a"'
+printf 'a\nb\n' | crys --map 'line.upcase'
+```
+
+Bind split fields to names:
+
+```sh
+printf 'alice:20\nbob:30\n' | crys -a -F: -N name,age 'puts "#{name}:#{age}"'
+```
+
 ## Options
 
 - `-n`: read input line by line. Exposes `line`, `nr`, and `fnr`
 - `-p`: same as `-n`, but assigns the body result back to `line` and prints it
 - `-a`: auto-split `line` into `f` and expose `nf`
 - `-F SEP`: field separator for `-a`. Prefix with `/` and suffix with `/` to use a regex: `-F'/: +/'`
+- `-N NAMES`: bind split fields to variable names. Example: `-N name,count`
+- `--where COND`: pre-filter condition in line mode. Repeatable, combined with AND
+- `--map EXPR`: shortcut for line mode mapping (`puts(EXPR)`)
+- `--select COND`: shortcut for line mode filtering (`puts line if COND`)
 - `-g`, `--slurp`: read all input into `input`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
 - `-r LIB`: add `require "LIB"`. Repeatable
@@ -105,6 +128,9 @@ Constraints:
 
 - `-g` / `--slurp` cannot be combined with `-n` / `-p`
 - `-i` requires at least one file
+- `--map` and `--select` cannot be combined
+- `--map` / `--select` cannot be combined with explicit `CRYSTAL_CODE`
+- `-N` requires `-a`
 
 ## Development
 

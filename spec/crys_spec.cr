@@ -13,6 +13,10 @@ private def make_opts(
   requires : Array(String) = [] of String,
   files : Array(String) = [] of String,
   inplace_suffix : String? = nil,
+  where_conditions : Array(String) = [] of String,
+  map_expr : String = "",
+  select_cond : String = "",
+  named_fields : Array(String) = [] of String,
 ) : Options
   o = Options.new
   o.body_code = body_code
@@ -26,6 +30,10 @@ private def make_opts(
   o.requires = requires.dup
   o.files = files.dup
   o.inplace_suffix = inplace_suffix
+  o.where_conditions = where_conditions.dup
+  o.map_expr = map_expr
+  o.select_cond = select_cond
+  o.named_fields = named_fields.dup
   o
 end
 
@@ -268,6 +276,52 @@ describe "parse_args" do
     end
   end
 
+  it "--where can be repeated" do
+    opts = parse_args(["--where", "line =~ /a/", "--where", "nr > 2", "puts line"])
+    opts.where_conditions.should eq(["line =~ /a/", "nr > 2"])
+  end
+
+  it "--map sets map expression and enables mode_n" do
+    opts = parse_args(["--map", "line.upcase"])
+    opts.mode_n?.should be_true
+    opts.map_expr.should eq("line.upcase")
+  end
+
+  it "--select sets condition and enables mode_n" do
+    opts = parse_args(["--select", "line =~ /err/"])
+    opts.mode_n?.should be_true
+    opts.select_cond.should eq("line =~ /err/")
+  end
+
+  it "-N parses comma-separated field names" do
+    opts = parse_args(["-a", "-N", "name, count, status", "puts name"])
+    opts.named_fields.should eq(["name", "count", "status"])
+  end
+
+  it "raises ArgumentError when --map and --select are combined" do
+    expect_raises(ArgumentError, /cannot be combined/) do
+      parse_args(["--map", "line", "--select", "nr > 1"])
+    end
+  end
+
+  it "raises ArgumentError when --map has a body code argument" do
+    expect_raises(ArgumentError, /do not take CRYSTAL_CODE/) do
+      parse_args(["--map", "line", "puts line"])
+    end
+  end
+
+  it "raises ArgumentError when -N is used without -a" do
+    expect_raises(ArgumentError, /-N requires -a/) do
+      parse_args(["-N", "name", "puts line"])
+    end
+  end
+
+  it "raises ArgumentError for invalid names passed to -N" do
+    expect_raises(ArgumentError, /invalid field name/) do
+      parse_args(["-a", "-N", "1name", "puts line"])
+    end
+  end
+
   # ── regex -F ──────────────────────────────────────────────────────────────
 
   it "-F/: +/ sets split_regex and stores the inner pattern" do
@@ -358,6 +412,40 @@ describe "generate_code (fnr / nf / regex separator)" do
     code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: ":"))
     code.should_not contain("Regex.new")
     code.should contain("__crys_sep")
+  end
+end
+
+describe "generate_code (ergonomic shortcuts)" do
+  it "emits --where conditions with AND semantics" do
+    code = generate_code(make_opts(
+      mode_n: true,
+      body_code: "puts line",
+      where_conditions: ["line =~ /error/", "nr > 1"]
+    ))
+
+    code.should contain("if (line =~ /error/) && (nr > 1)")
+  end
+
+  it "emits puts(EXPR) for --map" do
+    code = generate_code(make_opts(mode_n: true, map_expr: "line.upcase", body_code: ""))
+    code.should contain("puts(line.upcase)")
+  end
+
+  it "emits conditional print for --select" do
+    code = generate_code(make_opts(mode_n: true, select_cond: "line =~ /x/", body_code: ""))
+    code.should contain("puts line if line =~ /x/")
+  end
+
+  it "emits named field bindings when -N is used" do
+    code = generate_code(make_opts(
+      mode_n: true,
+      autosplit: true,
+      split_sep: ":",
+      named_fields: ["name", "count"]
+    ))
+
+    code.should contain("name = f[0]?")
+    code.should contain("count = f[1]?")
   end
 end
 

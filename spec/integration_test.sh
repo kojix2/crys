@@ -236,6 +236,26 @@ run_cmd_with_stdin $'foo  bar\nbaz\tqux\n' "$BIN" -a '-F/[ \t]+/' 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'bar\nqux'
 
+printf 'Testing --select shortcut...\n'
+run_cmd_with_stdin $'alpha\nerror\nbeta\n' "$BIN" --select 'line =~ /error/'
+assert_status 0
+assert_stdout_eq 'error'
+
+printf 'Testing --map shortcut...\n'
+run_cmd_with_stdin $'alpha\nbeta\n' "$BIN" --map 'line.upcase'
+assert_status 0
+assert_stdout_eq $'ALPHA\nBETA'
+
+printf 'Testing --where prefilter...\n'
+run_cmd_with_stdin $'ok\nerror\nwarning\n' "$BIN" -n --where 'line =~ /error|warn/' 'puts line'
+assert_status 0
+assert_stdout_eq $'error\nwarning'
+
+printf 'Testing -N named fields...\n'
+run_cmd_with_stdin $'alice:20\nbob:30\n' "$BIN" -a -F: -N 'name,age' 'puts "#{name}:#{age}"'
+assert_status 0
+assert_stdout_eq $'alice:20\nbob:30'
+
 printf 'Testing string separator backward compat with -F:...\n'
 run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
 assert_status 0
