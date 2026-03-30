@@ -84,7 +84,7 @@ module Crys
   end
 
   private def self.validate_mode_combinations(opts : Options) : Nil
-    raise ArgumentError.new("-i requires at least one file") if !opts.inplace_suffix.nil? && opts.files.empty?
+    raise ArgumentError.new("-i/-I requires at least one file") if !opts.inplace_suffix.nil? && opts.files.empty?
     raise ArgumentError.new("--map and --select cannot be combined") if !opts.map_expr.empty? && !opts.select_cond.empty?
     raise ArgumentError.new("--map cannot be combined with -p") if !opts.map_expr.empty? && opts.mode_p?
     raise ArgumentError.new("--select cannot be combined with -p") if !opts.select_cond.empty? && opts.mode_p?
@@ -168,9 +168,8 @@ module Crys
       opts.count_mode = true
       opts.mode_n = true
     end
-    parser.on("-i[SUFFIX]", "Edit files in place, optionally keeping backups") do |suffix|
-      opts.inplace_suffix = suffix
-    end
+    parser.on("-i", "Edit files in place") { opts.inplace_suffix = "" }
+    parser.on("-I SUFFIX", "Edit files in place and keep backups with SUFFIX") { |suffix| opts.inplace_suffix = suffix }
     parser.on("-r LIB", "Add require \"LIB\" to the generated program") { |req| opts.requires << req }
     parser.on("--init CODE", "Run CODE before processing input") { |code| opts.init_code = code }
     parser.on("--final CODE", "Run CODE after processing input") { |code| opts.final_code = code }
@@ -203,7 +202,7 @@ module Crys
         crys -a -F: 'puts f[1]'
         crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
         crys -r json 'pp JSON.parse(ARGF)'
-        crys -pi.bak 'l.gsub("foo", "bar")' file.txt
+        crys -I .bak -p 'l.gsub("foo", "bar")' file.txt
       TEXT
   end
 

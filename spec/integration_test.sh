@@ -181,7 +181,7 @@ assert_stdout_eq "$expected_path_output"
 
 printf 'Testing path variable for per-file runs...\n'
 printf 'first\n' >"$TEST_DIR/path.txt"
-run_cmd "$BIN" -i.bak -p '"#{path}:#{l}"' "$TEST_DIR/path.txt"
+run_cmd "$BIN" -I .bak -p '"#{path}:#{l}"' "$TEST_DIR/path.txt"
 assert_status 0
 assert_file_eq "$TEST_DIR/path.txt" "$TEST_DIR/path.txt:first"
 assert_file_eq "$TEST_DIR/path.txt.bak" 'first'
@@ -196,7 +196,7 @@ assert_file_eq "$TEST_DIR/inplace.txt" $'FOO\nBAR'
 printf 'Testing invalid combinations...\n'
 run_cmd "$BIN" -i -p 'l.upcase'
 assert_status 1
-assert_stderr_contains '-i requires at least one file'
+assert_stderr_contains '-i/-I requires at least one file'
 
 printf 'Testing fnr resets when same file appears twice in ARGV...\n'
 printf 'x\ny\n' >"$TEST_DIR/fnr1.txt"

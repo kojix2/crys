@@ -271,8 +271,8 @@ describe "parse_args" do
     end
   end
 
-  it "-i.bak sets inplace_suffix to .bak" do
-    opts = parse_args(["-i.bak", "puts l", "file.txt"])
+  it "-I .bak sets inplace_suffix to .bak" do
+    opts = parse_args(["-I", ".bak", "puts l", "file.txt"])
     opts.inplace_suffix.should eq(".bak")
   end
 
@@ -281,9 +281,15 @@ describe "parse_args" do
     opts.inplace_suffix.should eq("")
   end
 
-  it "raises ArgumentError when -i is used without files" do
-    expect_raises(ArgumentError, /-i requires at least one file/) do
+  it "raises ArgumentError when -i or -I is used without files" do
+    expect_raises(ArgumentError, /-i\/-I requires at least one file/) do
       parse_args(["-i", "puts l"])
+    end
+  end
+
+  it "raises ArgumentError when -I is used without files" do
+    expect_raises(ArgumentError, /-i\/-I requires at least one file/) do
+      parse_args(["-I", ".bak", "puts l"])
     end
   end
 

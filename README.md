@@ -64,7 +64,7 @@ printf '1\n2\n3\n' | crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
 Edit files in place:
 
 ```sh
-crys -pi.bak 'l.gsub("foo", "bar")' file.txt
+crys -I .bak -p 'l.gsub("foo", "bar")' file.txt
 crys -i 'l.upcase' file.txt
 ```
 
@@ -120,7 +120,8 @@ printf '1\nfoo\n3\n' | crys --where 'l =~ /^[0-9]+$/' --sum 'l.to_i' --count
 - `-h`, `--header`: treat first row as header and expose `row` hash (requires `-a`)
 - `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
 - `--count`: count selected rows; exposes `__crys_count`
-- `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
+- `-i`: edit files in place without backup
+- `-I SUFFIX`: edit files in place and keep backups with `SUFFIX`
 - `-r LIB`: add `require "LIB"` to the generated program. Resolution is done from `CRYS_HOME`
 - `--init CODE`: insert code before the main body or loop
 - `--final CODE`: insert code after the main body or loop
