@@ -256,14 +256,25 @@ describe "parse_args" do
     opts.crystal_flags.should contain("--error-trace")
   end
 
-  it "-O LEVEL goes into crystal_flags" do
+  it "-O LEVEL sets level" do
     opts = parse_args(["-O", "2", "puts 1"])
-    opts.crystal_flags.should contain("-O2")
+    opts.level.should eq("2")
   end
 
-  it "-O2 goes into crystal_flags" do
+  it "-O2 sets level" do
     opts = parse_args(["-O2", "puts 1"])
-    opts.crystal_flags.should contain("-O2")
+    opts.level.should eq("2")
+  end
+
+  it "defaults level to 2" do
+    opts = parse_args(["puts 1"])
+    opts.level.should eq("2")
+  end
+
+  it "raises ArgumentError for invalid -O level" do
+    expect_raises(ArgumentError, /must be one of/) do
+      parse_args(["-O", "x", "puts 1"])
+    end
   end
 
   it "-i.bak sets inplace_suffix to .bak" do

@@ -5,6 +5,7 @@ VERSION = "0.1.0"
 
 class Options
   property crys_home : String
+  property level : String = "2"
   property? mode_n : Bool = false
   property? mode_p : Bool = false
   property? autosplit : Bool = false
@@ -102,7 +103,7 @@ private def preprocess_args(argv : Array(String), opts : Options) : Array(String
       next
     end
     if arg.starts_with?("-O") && arg.bytesize > 2
-      opts.crystal_flags << "-O#{arg[2..]}"
+      opts.level = arg[2..]
       i += 1
       next
     end
@@ -147,6 +148,10 @@ private def finalize_options(opts : Options, remaining : Array(String)) : Option
 end
 
 private def validate_options(opts : Options) : Nil
+  unless {"0", "1", "2", "3", "s", "z"}.includes?(opts.level)
+    raise ArgumentError.new("-O LEVEL must be one of: 0,1,2,3,s,z")
+  end
+
   if opts.slurp? && opts.mode_n?
     raise ArgumentError.new("-g/--slurp cannot be combined with -n/-p")
   end
@@ -249,7 +254,7 @@ def parse_args(argv : Array(String)) : Options
   end
   parser.on("--dump", "Print generated code and exit") { opts.dump_only = true }
   parser.on("-O LEVEL", "Pass optimization level to crystal") do |level|
-    opts.crystal_flags << "-O#{level}"
+    opts.level = level
   end
   parser.on("--release", "Pass --release to crystal") { opts.crystal_flags << "--release" }
   parser.on("--error-trace", "Pass --error-trace to crystal") { opts.crystal_flags << "--error-trace" }
@@ -265,13 +270,13 @@ def crystal_run_args(opts : Options) : Array(String)
 end
 
 private def crystal_build_args(opts : Options, binary_path : String) : Array(String)
-  ["build"] + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
+  ["build", "-O#{opts.level}"] + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
 end
 
 private def cached_binary_path(opts : Options, code : String) : String
   cache_dir = File.join(opts.crys_home, "cache")
   Dir.mkdir_p(cache_dir)
-  cache_key = Digest::SHA256.hexdigest(opts.crystal_flags.join("\0") + "\0" + code)
+  cache_key = Digest::SHA256.hexdigest(opts.level + "\0" + opts.crystal_flags.join("\0") + "\0" + code)
   File.join(cache_dir, cache_key)
 end
 
