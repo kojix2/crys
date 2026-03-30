@@ -117,7 +117,7 @@ printf '1\nfoo\n3\n' | crys --where 'l =~ /^[0-9]+$/' --sum 'l.to_i' --count
 - `--where COND`: pre-filter condition in line mode. Repeatable, combined with AND
 - `--map EXPR`: shortcut for line mode mapping (`puts(EXPR)`)
 - `--select COND`: shortcut for line mode filtering (`puts l if COND`)
-- `--header`: treat first row as header and expose `row` hash (requires `-a`)
+- `-h`, `--header`: treat first row as header and expose `row` hash (requires `-a`)
 - `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
 - `--count`: count selected rows; exposes `__crys_count`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
@@ -129,7 +129,7 @@ printf '1\nfoo\n3\n' | crys --where 'l =~ /^[0-9]+$/' --sum 'l.to_i' --count
 - `--release`: build with `crystal build --release`
 - `--error-trace`: build with `crystal build --error-trace`
 - `--version`: show tool version
-- `-h`, `--help`: show help
+- `--help`: show help
 
 ## Implicit Variables
 

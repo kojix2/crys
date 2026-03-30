@@ -90,9 +90,12 @@ crystal build "$ROOT_DIR/src/main.cr" -o "$BIN"
 export CRYS_HOME="$CRYS_HOME_DIR"
 
 printf 'Testing help output...\n'
-run_cmd "$BIN" -h
+run_cmd "$BIN" --help
 assert_status 0
 assert_stdout_contains 'Usage:'
+run_cmd "$BIN" -h --map 'row["name"]'
+assert_status 1
+assert_stderr_contains '--header requires -a'
 run_cmd "$BIN" --help
 assert_status 0
 assert_stdout_contains 'Options:'
@@ -253,7 +256,7 @@ assert_status 0
 assert_stdout_eq $'alice:20\nbob:30'
 
 printf 'Testing --header row hash...\n'
-run_cmd_with_stdin $'name,age\nalice,20\nbob,30\n' "$BIN" -a -F, --header --map 'row["name"]'
+run_cmd_with_stdin $'name,age\nalice,20\nbob,30\n' "$BIN" -a -F, -h --map 'row["name"]'
 assert_status 0
 assert_stdout_eq $'alice\nbob'
 

@@ -4,25 +4,6 @@ module Crys
   class Options
     HELP_BANNER        = "Usage: crys [options] 'CRYSTAL_CODE' [file ...]"
     HELP_SUMMARY_WIDTH = 24
-    HELP_EXAMPLES      = <<-TEXT
-  Examples:
-    crys -n 'puts l'
-    crys -p 'l.upcase'
-    crys -a -F: 'puts f[1]'
-    crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
-    crys -r json 'pp JSON.parse(ARGF)'
-    crys -pi.bak 'l.gsub("foo", "bar")' file.txt
-  TEXT
-    HELP_NOTES = <<-TEXT
-  Notes:
-    Input lines are always chomped before your code runs.
-    Available variables: l, f, nf, nr, fnr, path, row.
-    f and nf are available only with -a.
-    row is available only with --header and maps column names to field values.
-    --sum and --count print their totals automatically unless --final is given.
-    Dependencies are loaded from CRYS_HOME (default: ~/.local/share/crys).
-    Manage shard.yml and run shards install in CRYS_HOME manually.
-  TEXT
 
     property crys_home : String
     property level : String = "2"
@@ -53,19 +34,10 @@ module Crys
     end
   end
 
-  private def self.append_help_block(parser : OptionParser, block : String) : Nil
-    parser.separator ""
+  private def self.append_footer(parser : OptionParser, block : String) : Nil
     block.each_line(chomp: true) do |line|
       parser.separator line
     end
-  end
-
-  private def self.add_examples(parser : OptionParser) : Nil
-    append_help_block(parser, Options::HELP_EXAMPLES)
-  end
-
-  private def self.add_notes(parser : OptionParser) : Nil
-    append_help_block(parser, Options::HELP_NOTES)
   end
 
   def self.usage : String
@@ -161,14 +133,6 @@ module Crys
       remaining.concat(args)
       remaining.concat(after_dash)
     end
-    parser.on("-h", "--help", "Show this help") do
-      puts parser
-      exit 0
-    end
-    parser.on("--version", "Show version") do
-      puts "crys #{VERSION}"
-      exit 0
-    end
     parser.on("-n", "Run CODE for each input line") { opts.mode_n = true }
     parser.on("-p", "Replace each line with CODE result and print it") do
       opts.mode_p = true
@@ -195,7 +159,7 @@ module Crys
       opts.select_cond = cond
       opts.mode_n = true
     end
-    parser.on("--header", "Use the first split row as headers and expose row") { opts.header_mode = true }
+    parser.on("-h", "--header", "Use the first split row as headers and expose row") { opts.header_mode = true }
     parser.on("--sum EXPR", "Add EXPR to a running total for selected lines") do |expr|
       opts.sum_expr = expr
       opts.mode_n = true
@@ -214,8 +178,33 @@ module Crys
     parser.on("-O LEVEL", "Build with crystal optimization level LEVEL") { |level| opts.level = level }
     parser.on("--release", "Build with crystal --release") { opts.crystal_flags << "--release" }
     parser.on("--error-trace", "Build with crystal --error-trace") { opts.crystal_flags << "--error-trace" }
-    add_examples(parser)
-    add_notes(parser)
+    parser.on("--help", "Show this help") do
+      puts parser
+      exit 0
+    end
+    parser.on("--version", "Show version") do
+      puts "crys #{VERSION}"
+      exit 0
+    end
+    append_footer(parser, <<-TEXT)
+
+      Notes:
+        Input lines are always chomped before your code runs.
+        Available variables: l, f, nf, nr, fnr, path, row.
+        f and nf are available only with -a.
+        row is available only with --header and maps column names to field values.
+        --sum and --count print their totals automatically unless --final is given.
+        Dependencies are loaded from CRYS_HOME (default: ~/.local/share/crys).
+        Manage shard.yml and run shards install in CRYS_HOME manually.
+
+      Examples:
+        crys -n 'puts l'
+        crys -p 'l.upcase'
+        crys -a -F: 'puts f[1]'
+        crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
+        crys -r json 'pp JSON.parse(ARGF)'
+        crys -pi.bak 'l.gsub("foo", "bar")' file.txt
+      TEXT
   end
 
   def self.parse_args(argv : Array(String)) : Options

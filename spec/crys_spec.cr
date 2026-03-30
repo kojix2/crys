@@ -333,6 +333,11 @@ describe "parse_args" do
     end
   end
 
+  it "-h enables header mode" do
+    opts = parse_args(["-a", "-h", "puts row[\"name\"]"])
+    opts.header_mode?.should be_true
+  end
+
   it "--header enables header mode" do
     opts = parse_args(["-a", "--header", "puts row[\"name\"]"])
     opts.header_mode?.should be_true
