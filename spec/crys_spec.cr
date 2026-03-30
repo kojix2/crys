@@ -267,6 +267,97 @@ describe "parse_args" do
       parse_args(["-i", "puts line"])
     end
   end
+
+  # ── regex -F ──────────────────────────────────────────────────────────────
+
+  it "-F/: +/ sets split_regex and stores the inner pattern" do
+    opts = parse_args(["-F/: +/", "puts f[1]"])
+    opts.split_regex?.should be_true
+    opts.split_sep.should eq(": +")
+  end
+
+  it "-F /: +/ with space sets split_regex" do
+    opts = parse_args(["-F", "/: +/", "puts f[1]"])
+    opts.split_regex?.should be_true
+    opts.split_sep.should eq(": +")
+  end
+
+  it "-F: without slashes does not set split_regex" do
+    opts = parse_args(["-F:", "puts f[1]"])
+    opts.split_regex?.should be_false
+    opts.split_sep.should eq(":")
+  end
+end
+
+describe "generate_code (fnr / nf / regex separator)" do
+  # ── fnr ───────────────────────────────────────────────────────────────────
+
+  it "emits fnr initialization in -n mode" do
+    code = generate_code(make_opts(mode_n: true))
+    code.should contain("fnr = 0")
+  end
+
+  it "emits fnr increment in stdin mode" do
+    code = generate_code(make_opts(mode_n: true))
+    code.should contain("fnr += 1")
+  end
+
+  it "emits fnr reset logic in file mode" do
+    code = generate_code(make_opts(mode_n: true, files: ["a.txt"]))
+    code.should contain("fnr")
+    code.should contain("__crys_last_path")
+  end
+
+  it "does not emit fnr in slurp mode" do
+    code = generate_code(make_opts(slurp: true, body_code: "puts input"))
+    code.should_not contain("fnr")
+  end
+
+  # ── nf ────────────────────────────────────────────────────────────────────
+
+  it "emits nf = f.size after autosplit" do
+    code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: ":"))
+    code.should contain("nf = f.size")
+  end
+
+  it "emits nf in stdin path" do
+    code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: " "))
+    code.should contain("nf = f.size")
+  end
+
+  it "does not emit nf without -a" do
+    code = generate_code(make_opts(mode_n: true))
+    code.should_not contain("nf")
+  end
+
+  # ── regex separator ───────────────────────────────────────────────────────
+
+  it "emits Regex.new(...) for regex separator" do
+    o = make_opts(mode_n: true, autosplit: true, split_sep: ": +")
+    o.split_regex = true
+    code = generate_code(o)
+    code.should contain("Regex.new")
+    code.should contain("__crys_sep_re")
+  end
+
+  it "emits line.split(__crys_sep_re) for regex separator" do
+    o = make_opts(mode_n: true, autosplit: true, split_sep: "[ /]+")
+    o.split_regex = true
+    code = generate_code(o)
+    code.should contain("line.split(__crys_sep_re)")
+  end
+
+  it "emits line.split (whitespace) for default string separator" do
+    code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: " "))
+    code.should_not contain("Regex.new")
+    code.should contain("line.split")
+  end
+
+  it "emits string split for non-whitespace literal separator" do
+    code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: ":"))
+    code.should_not contain("Regex.new")
+    code.should contain("__crys_sep")
+  end
 end
 
 describe "crystal_run_args" do

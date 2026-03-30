@@ -199,4 +199,41 @@ run_cmd "$BIN" -i -p 'line.upcase'
 assert_status 1
 assert_stderr_contains '-i requires at least one file'
 
+printf 'Testing fnr (per-file line number)...\n'
+printf 'x\ny\n' >"$TEST_DIR/fnr1.txt"
+printf 'a\nb\n' >"$TEST_DIR/fnr2.txt"
+run_cmd "$BIN" -n 'puts fnr' "$TEST_DIR/fnr1.txt" "$TEST_DIR/fnr2.txt"
+assert_status 0
+assert_stdout_eq $'1\n2\n1\n2'
+
+printf 'Testing nr stays global across files...\n'
+run_cmd "$BIN" -n 'puts nr' "$TEST_DIR/fnr1.txt" "$TEST_DIR/fnr2.txt"
+assert_status 0
+assert_stdout_eq $'1\n2\n3\n4'
+
+printf 'Testing fnr with stdin equals nr...\n'
+run_cmd_with_stdin 'p\nq\n' "$BIN" -n 'puts "#{nr}:#{fnr}"'
+assert_status 0
+assert_stdout_eq $'1:1\n2:2'
+
+printf 'Testing nf with -a...\n'
+run_cmd_with_stdin 'a:b:c\nx:y\n' "$BIN" -a -F: 'puts nf'
+assert_status 0
+assert_stdout_eq $'3\n2'
+
+printf 'Testing regex separator -F/: +/...\n'
+run_cmd_with_stdin $'a:  b\nc:d\n' "$BIN" -a '-F/: +/' 'puts f[1]'
+assert_status 0
+assert_stdout_eq $'b\nd'
+
+printf 'Testing regex separator -F/[ \t]+/...\n'
+run_cmd_with_stdin $'foo  bar\nbaz\tqux\n' "$BIN" -a '-F/[ \t]+/' 'puts f[1]'
+assert_status 0
+assert_stdout_eq $'bar\nqux'
+
+printf 'Testing string separator backward compat with -F:...\n'
+run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
+assert_status 0
+assert_stdout_eq $'b\nd'
+
 printf 'All integration tests passed.\n'

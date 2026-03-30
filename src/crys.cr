@@ -18,6 +18,7 @@ class Options
   property crystal_flags : Array(String) = [] of String
   property? dump_only : Bool = false
   property inplace_suffix : String?
+  property? split_regex : Bool = false
 
   def initialize
     @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
@@ -38,10 +39,10 @@ USAGE = <<-USAGE
     crys -pi.bak 'line.gsub("foo", "bar")' file.txt
 
   Options:
-    -n              Read input line by line. Exposes: line, nr
+    -n              Read input line by line. Exposes: line, nr, fnr
     -p              Like -n, but assigns body result back to line and prints it
-    -a              Auto-split line into f
-    -F SEP          Field separator for -a (default: " ")
+    -a              Auto-split line into f, nf
+    -F SEP          Field separator for -a (default: " ", prefix '/' for regex: -F/: +/)
     -g, --slurp     Read all input into input
     -i[SUFFIX]      Edit files in-place (SUFFIX for backup, e.g. -i.bak)
     -r LIB          Add require "LIB" (repeatable)
@@ -55,7 +56,8 @@ USAGE = <<-USAGE
 
   Notes:
     * line is always chomped.
-    * Implicit variables: line, f, nr, path, input
+    * Implicit variables: line, f, nf, nr, fnr, path, input
+    * nf: number of fields (only with -a). fnr: per-file line number (same as nr for stdin)
     * Dependencies are resolved from CRYS_HOME (default: ~/.local/share/crys).
     * Manage shard.yml / shards install there manually.
   USAGE
@@ -73,7 +75,13 @@ private def preprocess_args(argv : Array(String), opts : Options) : Array(String
       next
     end
     if arg.starts_with?("-F") && arg.bytesize > 2
-      opts.split_sep = arg[2..]
+      raw = arg[2..]
+      if raw.starts_with?('/') && raw.ends_with?('/') && raw.bytesize >= 2
+        opts.split_sep = raw[1..-2]
+        opts.split_regex = true
+      else
+        opts.split_sep = raw
+      end
       i += 1
       next
     end
@@ -135,7 +143,12 @@ def parse_args(argv : Array(String)) : Options
   end
   parser.on("-a", "Auto-split line into f") { opts.autosplit = true }
   parser.on("-F SEP", "Field separator") do |sep|
-    opts.split_sep = sep
+    if sep.starts_with?('/') && sep.ends_with?('/') && sep.bytesize >= 2
+      opts.split_sep = sep[1..-2]
+      opts.split_regex = true
+    else
+      opts.split_sep = sep
+    end
   end
   parser.on("-g", "--slurp", "Read all input into input") { opts.slurp = true }
   parser.on("-r LIB", "Require library") do |req|
@@ -223,36 +236,54 @@ private def append_indented_code(io : IO, code : String, indent : String) : Nil
   end
 end
 
-private def generate_autosplit(io : IO) : Nil
-  io << "  f =\n"
-  io << "    if __crys_sep == \" \"\n"
-  io << "      line.split\n"
-  io << "    else\n"
-  io << "      line.split(__crys_sep)\n"
-  io << "    end\n"
+private def generate_autosplit(io : IO, regex : Bool = false) : Nil
+  if regex
+    io << "  f = line.split(__crys_sep_re)\n"
+  else
+    io << "  f =\n"
+    io << "    if __crys_sep == \" \"\n"
+    io << "      line.split\n"
+    io << "    else\n"
+    io << "      line.split(__crys_sep)\n"
+    io << "    end\n"
+  end
+  io << "  nf = f.size\n"
 end
 
 private def generate_line_mode(io : IO, opts : Options) : Nil
   if opts.autosplit?
-    sep_literal = opts.split_sep.inspect
-    io << "__crys_sep = #{sep_literal}\n\n"
+    if opts.split_regex?
+      io << "__crys_sep_re = Regex.new(#{opts.split_sep.inspect})\n\n"
+    else
+      sep_literal = opts.split_sep.inspect
+      io << "__crys_sep = #{sep_literal}\n\n"
+    end
   end
 
   io << "nr = 0\n"
+  io << "fnr = 0\n"
   if reads_from_files?(opts)
+    io << "__crys_last_path = \"\"\n"
     io << "ARGV.each do |path|\n"
     io << "  File.open(path) do |__crys_file|\n"
     io << "    __crys_file.each_line do |__raw_line|\n"
     io << "      nr += 1\n"
+    io << "      fnr = path == __crys_last_path ? fnr + 1 : 1\n"
+    io << "      __crys_last_path = path\n"
     io << "      line = __raw_line.chomp\n"
 
     if opts.autosplit?
-      io << "      f =\n"
-      io << "        if __crys_sep == \" \"\n"
-      io << "          line.split\n"
-      io << "        else\n"
-      io << "          line.split(__crys_sep)\n"
-      io << "        end\n"
+      if opts.split_regex?
+        io << "      f = line.split(__crys_sep_re)\n"
+      else
+        io << "      f =\n"
+        io << "        if __crys_sep == \" \"\n"
+        io << "          line.split\n"
+        io << "        else\n"
+        io << "          line.split(__crys_sep)\n"
+        io << "        end\n"
+      end
+      io << "      nf = f.size\n"
     end
 
     if opts.mode_p?
@@ -270,9 +301,10 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
   else
     io << "STDIN.each_line do |__raw_line|\n"
     io << "  nr += 1\n"
+    io << "  fnr += 1\n"
     io << "  line = __raw_line.chomp\n"
 
-    generate_autosplit(io) if opts.autosplit?
+    generate_autosplit(io, opts.split_regex?) if opts.autosplit?
 
     if opts.mode_p?
       io << "  line = begin\n"

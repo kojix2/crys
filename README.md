@@ -41,6 +41,12 @@ Auto-split input:
 printf 'a:b\nc:d\n' | crys -a -F: 'puts f[1]'
 ```
 
+Auto-split input with regex separator:
+
+```sh
+printf 'a:  b\nc:   d\n' | crys -a -F'/: +/' 'puts f[1]'
+```
+
 Slurp all input:
 
 ```sh
@@ -68,10 +74,10 @@ crys --dump -p 'line.upcase'
 
 ## Options
 
-- `-n`: read input line by line. Exposes `line` and `nr`
+- `-n`: read input line by line. Exposes `line`, `nr`, and `fnr`
 - `-p`: same as `-n`, but assigns the body result back to `line` and prints it
-- `-a`: auto-split `line` into `f`
-- `-F SEP`: field separator for `-a`
+- `-a`: auto-split `line` into `f` and expose `nf`
+- `-F SEP`: field separator for `-a`. Prefix with `/` and suffix with `/` to use a regex: `-F'/: +/'`
 - `-g`, `--slurp`: read all input into `input`
 - `-i[SUFFIX]`: edit files in place. `-i.bak` creates backups
 - `-r LIB`: add `require "LIB"`. Repeatable
@@ -87,7 +93,9 @@ Implicit variables:
 
 - `line`: current line, always chomped
 - `f`: split fields, only with `-a`
-- `nr`: record number
+- `nf`: number of fields (`f.size`), only with `-a`
+- `nr`: record number (global, counts across all files)
+- `fnr`: per-file record number (same as `nr` for stdin, resets to 1 at each new file)
 - `input`: full slurped input, only with `-g` or `--slurp`
 - `path`: current file path when reading files or editing in place
 
