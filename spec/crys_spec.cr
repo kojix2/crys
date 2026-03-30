@@ -304,8 +304,9 @@ describe "generate_code (fnr / nf / regex separator)" do
 
   it "emits fnr reset logic in file mode" do
     code = generate_code(make_opts(mode_n: true, files: ["a.txt"]))
-    code.should contain("fnr")
-    code.should contain("__crys_last_path")
+    code.should contain("fnr = 0")
+    code.should contain("fnr += 1")
+    code.should_not contain("__crys_last_path")
   end
 
   it "does not emit fnr in slurp mode" do

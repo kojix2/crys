@@ -263,13 +263,12 @@ private def generate_line_mode(io : IO, opts : Options) : Nil
   io << "nr = 0\n"
   io << "fnr = 0\n"
   if reads_from_files?(opts)
-    io << "__crys_last_path = \"\"\n"
     io << "ARGV.each do |path|\n"
+    io << "  fnr = 0\n"
     io << "  File.open(path) do |__crys_file|\n"
     io << "    __crys_file.each_line do |__raw_line|\n"
     io << "      nr += 1\n"
-    io << "      fnr = path == __crys_last_path ? fnr + 1 : 1\n"
-    io << "      __crys_last_path = path\n"
+    io << "      fnr += 1\n"
     io << "      line = __raw_line.chomp\n"
 
     if opts.autosplit?
