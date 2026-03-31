@@ -2,9 +2,10 @@
 
 [![test](https://github.com/kojix2/crys/actions/workflows/test.yml/badge.svg)](https://github.com/kojix2/crys/actions/workflows/test.yml)
 
-A Crystal one-liner tool.
-
 :construction: Very early stage
+
+A command-line tool that can process text files ranging from a few hundred megabytes to several gigabytes with a single command. 
+It uses a Ruby-like syntax and is about as fast as C.
 
 ## Installation
 
@@ -16,6 +17,10 @@ cd crys
 shards build
 mv bin/crys ~/.local/bin
 ```
+
+Q: Building from source? Why don’t you distribute pre-compiled binary files?
+
+A: This tool only works in environments where the Crystal compiler is available. If the Crystal code cannot be compiled, Crys will not run. That’s why this approach works.
 
 ## Usage
 
