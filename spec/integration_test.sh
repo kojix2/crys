@@ -111,11 +111,11 @@ run_cmd_with_stdin 'alpha\nbeta\n' "$BIN" -p 'l.upcase'
 assert_status 0
 assert_stdout_eq $'ALPHA\nBETA'
 
-run_cmd_with_stdin 'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
+run_cmd_with_stdin 'a:b\nc:d\n' "$BIN" -a -d: 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'b\nd'
 
-run_cmd_with_stdin $'a\tb\n' "$BIN" -a -F $'\t' 'puts f[1]'
+run_cmd_with_stdin $'a\tb\n' "$BIN" -a -d $'\t' 'puts f[1]'
 assert_status 0
 assert_stdout_eq 'b'
 
@@ -223,22 +223,22 @@ assert_status 0
 assert_stdout_eq $'1:1\n2:2'
 
 printf 'Testing nf with -a...\n'
-run_cmd_with_stdin 'a:b:c\nx:y\n' "$BIN" -a -F: 'puts nf'
+run_cmd_with_stdin 'a:b:c\nx:y\n' "$BIN" -a -d: 'puts nf'
 assert_status 0
 assert_stdout_eq $'3\n2'
 
-printf 'Testing regex separator -F/: +/...\n'
-run_cmd_with_stdin $'a:  b\nc: d\n' "$BIN" -a '-F/: +/' 'puts f[1]'
+printf 'Testing regex separator -d/: +/...\n'
+run_cmd_with_stdin $'a:  b\nc: d\n' "$BIN" -a '-d/: +/' 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'b\nd'
 
-printf 'Testing regex separator -F/[ \t]+/...\n'
-run_cmd_with_stdin $'foo  bar\nbaz\tqux\n' "$BIN" -a '-F/[ \t]+/' 'puts f[1]'
+printf 'Testing regex separator -d/[ \t]+/...\n'
+run_cmd_with_stdin $'foo  bar\nbaz\tqux\n' "$BIN" -a '-d/[ \t]+/' 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'bar\nqux'
 
-printf 'Testing --select shortcut...\n'
-run_cmd_with_stdin $'alpha\nerror\nbeta\n' "$BIN" --select 'l =~ /error/'
+printf 'Testing -F/--filter shortcut...\n'
+run_cmd_with_stdin $'alpha\nerror\nbeta\n' "$BIN" -F 'l =~ /error/'
 assert_status 0
 assert_stdout_eq 'error'
 

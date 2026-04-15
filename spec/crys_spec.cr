@@ -204,13 +204,13 @@ describe "parse_args" do
     end
   end
 
-  it "-F: (no space) sets split_sep to colon" do
-    opts = parse_args(["-F:", "puts l"])
+  it "-d: (no space) sets split_sep to colon" do
+    opts = parse_args(["-d:", "puts l"])
     opts.split_sep.should eq(":")
   end
 
-  it "-F : (with space) sets split_sep to colon" do
-    opts = parse_args(["-F", ":", "puts l"])
+  it "-d : (with space) sets split_sep to colon" do
+    opts = parse_args(["-d", ":", "puts l"])
     opts.split_sep.should eq(":")
   end
 
@@ -220,7 +220,7 @@ describe "parse_args" do
     opts.mode_n?.should be_true
   end
 
-  it "-a without -F sets split_sep to space and enables mode_n" do
+  it "-a without -d sets split_sep to space and enables mode_n" do
     opts = parse_args(["-a", "puts f[0]"])
     opts.autosplit?.should be_true
     opts.split_sep.should eq(" ")
@@ -276,8 +276,8 @@ describe "parse_args" do
   end
 
   it "raises ArgumentError when an option argument is missing" do
-    expect_raises(ArgumentError, /missing option: -F/) do
-      parse_args(["-F"])
+    expect_raises(ArgumentError, /missing option: -d/) do
+      parse_args(["-d"])
     end
   end
 
@@ -314,8 +314,8 @@ describe "parse_args" do
     opts.map_expr.should eq("l.upcase")
   end
 
-  it "--select sets condition and enables mode_n" do
-    opts = parse_args(["--select", "l =~ /err/"])
+  it "-F/--filter sets condition and enables mode_n" do
+    opts = parse_args(["-F", "l =~ /err/"])
     opts.mode_n?.should be_true
     opts.select_cond.should eq("l =~ /err/")
   end
@@ -325,9 +325,9 @@ describe "parse_args" do
     opts.named_fields.should eq(["name", "count", "status"])
   end
 
-  it "raises ArgumentError when --map and --select are combined" do
+  it "raises ArgumentError when --map and --filter are combined" do
     expect_raises(ArgumentError, /cannot be combined/) do
-      parse_args(["--map", "l", "--select", "nr > 1"])
+      parse_args(["--map", "l", "-F", "nr > 1"])
     end
   end
 
@@ -349,8 +349,8 @@ describe "parse_args" do
     end
   end
 
-  it "-h enables header mode" do
-    opts = parse_args(["-a", "-h", "puts row[\"name\"]"])
+  it "-H enables header mode" do
+    opts = parse_args(["-a", "-H", "puts row[\"name\"]"])
     opts.header_mode?.should be_true
   end
 
@@ -385,20 +385,20 @@ describe "parse_args" do
 
   # ── regex -F ──────────────────────────────────────────────────────────────
 
-  it "-F/: +/ sets split_regex and stores the inner pattern" do
-    opts = parse_args(["-F/: +/", "puts f[1]"])
+  it "-d/: +/ sets split_regex and stores the inner pattern" do
+    opts = parse_args(["-d/: +/", "puts f[1]"])
     opts.split_regex?.should be_true
     opts.split_sep.should eq(": +")
   end
 
-  it "-F /: +/ with space sets split_regex" do
-    opts = parse_args(["-F", "/: +/", "puts f[1]"])
+  it "-d /: +/ with space sets split_regex" do
+    opts = parse_args(["-d", "/: +/", "puts f[1]"])
     opts.split_regex?.should be_true
     opts.split_sep.should eq(": +")
   end
 
-  it "-F: without slashes does not set split_regex" do
-    opts = parse_args(["-F:", "puts f[1]"])
+  it "-d: without slashes does not set split_regex" do
+    opts = parse_args(["-d:", "puts f[1]"])
     opts.split_regex?.should be_false
     opts.split_sep.should eq(":")
   end
