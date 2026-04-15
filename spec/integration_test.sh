@@ -93,7 +93,7 @@ printf 'Testing help output...\n'
 run_cmd "$BIN" --help
 assert_status 0
 assert_stdout_contains 'Usage:'
-run_cmd "$BIN" -h --map 'row["name"]'
+run_cmd "$BIN" -H --map 'row["name"]'
 assert_status 1
 assert_stderr_contains '--header requires -a'
 run_cmd "$BIN" --help
@@ -253,12 +253,12 @@ assert_status 0
 assert_stdout_eq $'error\nwarning'
 
 printf 'Testing -N named fields...\n'
-run_cmd_with_stdin $'alice:20\nbob:30\n' "$BIN" -a -F: -N 'name,age' 'puts "#{name}:#{age}"'
+run_cmd_with_stdin $'alice:20\nbob:30\n' "$BIN" -a -d: -N 'name,age' 'puts "#{name}:#{age}"'
 assert_status 0
 assert_stdout_eq $'alice:20\nbob:30'
 
 printf 'Testing --header row hash...\n'
-run_cmd_with_stdin $'name,age\nalice,20\nbob,30\n' "$BIN" -a -F, -h --map 'row["name"]'
+run_cmd_with_stdin $'name,age\nalice,20\nbob,30\n' "$BIN" -a -d, -H --map 'row["name"]'
 assert_status 0
 assert_stdout_eq $'alice\nbob'
 
@@ -277,8 +277,8 @@ run_cmd_with_stdin $'1\nfoo\n3\nbar\n' "$BIN" --where 'l =~ /^[0-9]+$/' --sum 'l
 assert_status 0
 assert_stdout_eq $'4.0\n2'
 
-printf 'Testing string separator backward compat with -F:...\n'
-run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
+printf 'Testing string separator with -d:...\n'
+run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -d: 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'b\nd'
 
