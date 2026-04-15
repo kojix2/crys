@@ -3,7 +3,7 @@ require "option_parser"
 module Crys
   class Options
     HELP_BANNER        = "Usage: crys [options] 'CRYSTAL_CODE' [file ...]"
-    HELP_SUMMARY_WIDTH = 24
+    HELP_SUMMARY_WIDTH = 20
 
     property crys_home : String
     property level : String = "2"
@@ -177,12 +177,12 @@ module Crys
       remaining.concat(after_dash)
     end
     parser.on("-n", "Run CODE for each input line") { opts.mode_n = true }
-    parser.on("-p", "Replace each line with CODE result and print it") do
+    parser.on("-p", "--print", "Replace each line with CODE result and print it") do
       opts.mode_p = true
       opts.mode_n = true
     end
-    parser.on("-a", "Split each line into f and nf") { opts.autosplit = true }
-    parser.on("-F SEP", "Use SEP as field separator for -a") do |sep|
+    parser.on("-a", "--auto-split", "Split each line into f and nf") { opts.autosplit = true }
+    parser.on("-d", "--delimiter SEP", "Use SEP as field separator for -a") do |sep|
       if sep.starts_with?('/') && sep.ends_with?('/') && sep.bytesize >= 2
         opts.split_sep = sep[1..-2]
         opts.split_regex = true
@@ -190,54 +190,54 @@ module Crys
         opts.split_sep = sep
       end
     end
-    parser.on("-N NAMES", "Bind split fields to variables, e.g. name,count") do |names|
+    parser.on("-N", "--names NAMES", "Bind split fields to variables, e.g. name,count") do |names|
       opts.named_fields = names.split(',').map(&.strip).reject(&.empty?)
     end
-    parser.on("--where COND", "Process only lines where COND is true") { |cond| opts.where_conditions << cond }
-    parser.on("--map EXPR", "Print EXPR for each selected line") do |expr|
+    parser.on("-W", "--where COND", "Process only lines where COND is true") { |cond| opts.where_conditions << cond }
+    parser.on("-M", "--map EXPR", "Print EXPR for each selected line") do |expr|
       opts.map_expr = expr
       opts.mode_n = true
     end
-    parser.on("--select COND", "Print l when COND is true") do |cond|
+    parser.on("-F", "--filter COND", "Print l when COND is true") do |cond|
       opts.select_cond = cond
       opts.mode_n = true
     end
-    parser.on("-h", "--header", "Use the first split row as headers and expose row") { opts.header_mode = true }
-    parser.on("--sum EXPR", "Add EXPR to a running total for selected lines") do |expr|
+    parser.on("-H", "--header", "Use the first split row as headers and expose row") { opts.header_mode = true }
+    parser.on("-S", "--sum EXPR", "Add EXPR to a running total for selected lines") do |expr|
       opts.sum_expr = expr
       opts.mode_n = true
     end
-    parser.on("--count", "Count selected rows") do
+    parser.on("-C", "--count", "Count selected rows") do
       opts.count_mode = true
       opts.mode_n = true
     end
-    parser.on("--parallel", "Enable parallel batch processing (experimental)") { opts.parallel = true }
-    parser.on("--unordered", "Allow out-of-order output in parallel mode") { opts.unordered = true }
-    parser.on("--workers N", "Set parallel workers for --parallel") do |value|
+    parser.on("-P", "--parallel", "Enable parallel batch processing (experimental)") { opts.parallel = true }
+    parser.on("-U", "--unordered", "Allow out-of-order output in parallel mode") { opts.unordered = true }
+    parser.on("-@", "--workers N", "Set parallel workers for --parallel") do |value|
       opts.workers = value.to_i
     rescue ex : ArgumentError
       raise ArgumentError.new("invalid --workers value: #{value}")
     end
-    parser.on("--batch-lines N", "Set batch size in lines for --parallel") do |value|
+    parser.on("-B", "--batch-lines N", "Set batch size in lines for --parallel") do |value|
       opts.batch_lines = value.to_i
     rescue ex : ArgumentError
       raise ArgumentError.new("invalid --batch-lines value: #{value}")
     end
-    parser.on("--queue-batches N", "Set producer queue capacity in batches for --parallel") do |value|
+    parser.on("-Q", "--queue-batches N", "Set producer queue capacity in batches for --parallel") do |value|
       opts.queue_batches = value.to_i
     rescue ex : ArgumentError
       raise ArgumentError.new("invalid --queue-batches value: #{value}")
     end
-    parser.on("-i", "Edit files in place") { opts.inplace_suffix = "" }
+    parser.on("-i", "--inplace", "Edit files in place") { opts.inplace_suffix = "" }
     parser.on("-I SUFFIX", "Edit files in place and keep backups with SUFFIX") { |suffix| opts.inplace_suffix = suffix }
-    parser.on("-r LIB", "Add require \"LIB\" to the generated program") { |req| opts.requires << req }
-    parser.on("--init CODE", "Run CODE before processing input") { |code| opts.init_code = code }
-    parser.on("--final CODE", "Run CODE after processing input") { |code| opts.final_code = code }
-    parser.on("--dump", "Print the generated Crystal program and exit") { opts.dump_only = true }
+    parser.on("-r", "--require LIB", "Add require \"LIB\" to the generated program") { |req| opts.requires << req }
+    parser.on("-A", "--init CODE", "Run CODE before processing input") { |code| opts.init_code = code }
+    parser.on("-E", "--final CODE", "Run CODE after processing input") { |code| opts.final_code = code }
+    parser.on("-D", "--dump", "Print the generated Crystal program and exit") { opts.dump_only = true }
     parser.on("-O LEVEL", "Build with crystal optimization level LEVEL") { |level| opts.level = level }
-    parser.on("--release", "Build with crystal --release") { opts.crystal_flags << "--release" }
+    parser.on("-R", "--release", "Build with crystal --release") { opts.crystal_flags << "--release" }
     parser.on("--error-trace", "Build with crystal --error-trace") { opts.crystal_flags << "--error-trace" }
-    parser.on("--help", "Show this help") do
+    parser.on("-h", "--help", "Show this help") do
       puts parser
       exit 0
     end
