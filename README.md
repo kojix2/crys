@@ -14,8 +14,8 @@ Build from source:
 ```sh
 git clone https://github.com/kojix2/crys
 cd crys
-shards build
-mv bin/crys ~/.local/bin
+make release=1 parallel=1
+make install
 ```
 
 Q: Building from source? Why don’t you distribute pre-compiled binary files?
@@ -184,14 +184,26 @@ Generated programs are cached under `CRYS_HOME/cache` and reused when the genera
 
 ## Development
 
+Build:
+
+```sh
+make
+```
+
 Run unit tests:
 
 ```sh
-crystal spec
+make test-unit
 ```
 
 Run integration tests:
 
 ```sh
-bash spec/integration_test.sh
+make test-integration
+```
+
+Run all tests:
+
+```sh
+make test
 ```
