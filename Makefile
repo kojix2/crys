@@ -29,7 +29,7 @@ help:
 	@echo "  test             Run unit + integration tests"
 	@echo "  test-unit        Run unit tests"
 	@echo "  test-integration Run integration tests"
-	@echo "  install          Build and install $(BINARY) to $(INSTALL_DIR)"
+	@echo "  install          Install current build, or build first if missing"
 	@echo "  uninstall        Remove installed binary"
 	@echo "  clean            Remove built binary"
 	@echo ""
@@ -52,7 +52,7 @@ test-integration:
 	bash spec/integration_test.sh
 
 install:
-	$(MAKE) build release=$(release) parallel=$(parallel)
+	@test -x "$(BIN_PATH)" || $(MAKE) build release=$(release) parallel=$(parallel)
 	mkdir -p "$(INSTALL_DIR)"
 	cp "$(BIN_PATH)" "$(INSTALL_DIR)/$(BINARY)"
 	chmod +x "$(INSTALL_DIR)/$(BINARY)"
