@@ -6,7 +6,13 @@ module Crys
   end
 
   private def self.crystal_build_args(opts : Options, binary_path : String) : Array(String)
-    ["build", "-O#{opts.level}"] + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
+    args = ["build", "-O#{opts.level}"]
+    if opts.parallel?
+      args << "-Dpreview_mt"
+      args << "-Dexecution_context"
+    end
+
+    args + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
   end
 
   private def self.cached_binary_path(opts : Options, code : String) : String

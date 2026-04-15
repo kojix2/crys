@@ -33,6 +33,11 @@ private def make_opts(
   header_mode : Bool = false,
   sum_expr : String = "",
   count_mode : Bool = false,
+  parallel : Bool = false,
+  unordered : Bool = false,
+  workers : Int32? = nil,
+  batch_lines : Int32 = 4096,
+  queue_batches : Int32? = nil,
 ) : Options
   o = Options.new
   o.body_code = body_code
@@ -52,6 +57,11 @@ private def make_opts(
   o.header_mode = header_mode
   o.sum_expr = sum_expr
   o.count_mode = count_mode
+  o.parallel = parallel
+  o.unordered = unordered
+  o.workers = workers
+  o.batch_lines = batch_lines
+  o.queue_batches = queue_batches
   o
 end
 
@@ -392,6 +402,43 @@ describe "parse_args" do
     opts.split_regex?.should be_false
     opts.split_sep.should eq(":")
   end
+
+  it "parses --parallel and --unordered" do
+    opts = parse_args(["--parallel", "--unordered", "--map", "l.upcase"])
+    opts.parallel?.should be_true
+    opts.unordered?.should be_true
+  end
+
+  it "parses --workers, --batch-lines and --queue-batches" do
+    opts = parse_args(["--parallel", "--workers", "4", "--batch-lines", "2048", "--queue-batches", "8", "--map", "l"])
+    opts.workers.should eq(4)
+    opts.batch_lines.should eq(2048)
+    opts.queue_batches.should eq(8)
+  end
+
+  it "raises when --unordered is used without --parallel" do
+    expect_raises(ArgumentError, /--unordered requires --parallel/) do
+      parse_args(["--unordered", "--map", "l"])
+    end
+  end
+
+  it "raises when --parallel is used with unsupported -a" do
+    expect_raises(ArgumentError, /does not support -a/) do
+      parse_args(["--parallel", "-a", "-p", "l"])
+    end
+  end
+
+  it "raises when --parallel is used with multiple files" do
+    expect_raises(ArgumentError, /at most one input file/) do
+      parse_args(["--parallel", "-p", "l", "a.txt", "b.txt"])
+    end
+  end
+
+  it "raises when --parallel is used with plain -n body" do
+    expect_raises(ArgumentError, /supports only -p, --map, or --select/) do
+      parse_args(["--parallel", "-n", "puts l"])
+    end
+  end
 end
 
 describe "generate_code (fnr / nf / regex separator)" do
@@ -458,6 +505,18 @@ describe "generate_code (fnr / nf / regex separator)" do
     code = generate_code(make_opts(mode_n: true, autosplit: true, split_sep: ":"))
     code.should_not contain("Regex.new")
     code.should contain("__crys_sep")
+  end
+
+  it "emits parallel batch scaffolding for --parallel --map" do
+    code = generate_code(make_opts(mode_n: true, map_expr: "l.upcase", body_code: "", parallel: true, workers: 4))
+    code.should contain("Fiber::ExecutionContext::Parallel")
+    code.should contain("alias CrysBatch")
+    code.should contain("Channel(CrysBatch?)")
+  end
+
+  it "emits ordered flag false when unordered mode is enabled" do
+    code = generate_code(make_opts(mode_n: true, map_expr: "l", body_code: "", parallel: true, unordered: true))
+    code.should contain("__crys_ordered = false")
   end
 end
 

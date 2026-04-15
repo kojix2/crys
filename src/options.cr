@@ -27,10 +27,17 @@ module Crys
     property? header_mode : Bool = false
     property sum_expr : String = ""
     property? count_mode : Bool = false
+    property? parallel : Bool = false
+    property? unordered : Bool = false
+    property workers : Int32?
+    property batch_lines : Int32 = 4096
+    property queue_batches : Int32?
 
     def initialize
       @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
       @inplace_suffix = nil
+      @workers = nil
+      @queue_batches = nil
     end
   end
 
@@ -111,11 +118,47 @@ module Crys
     end
   end
 
+  private def self.validate_parallel_mode_requirements(opts : Options) : Nil
+    raise ArgumentError.new("--parallel requires line mode (-n, -p, --map or --select)") unless opts.mode_n?
+    raise ArgumentError.new("--parallel cannot be combined with -i/-I") unless opts.inplace_suffix.nil?
+    raise ArgumentError.new("--parallel currently supports at most one input file") if opts.files.size > 1
+    raise ArgumentError.new("--parallel currently supports only -p, --map, or --select") if !opts.mode_p? && opts.map_expr.empty? && opts.select_cond.empty?
+  end
+
+  private def self.validate_parallel_unsupported_combinations(opts : Options) : Nil
+    raise ArgumentError.new("--parallel does not support -a/-N/--header yet") if opts.autosplit? || !opts.named_fields.empty? || opts.header_mode?
+    raise ArgumentError.new("--parallel does not support --where yet") unless opts.where_conditions.empty?
+    raise ArgumentError.new("--parallel does not support --sum/--count yet") if !opts.sum_expr.empty? || opts.count_mode?
+    raise ArgumentError.new("--parallel does not support --init/--final yet") unless opts.init_code.empty? && opts.final_code.empty?
+  end
+
+  private def self.validate_parallel_numeric_options(opts : Options) : Nil
+    if workers = opts.workers
+      raise ArgumentError.new("--workers must be >= 1") if workers < 1
+    end
+
+    raise ArgumentError.new("--batch-lines must be >= 1") if opts.batch_lines < 1
+
+    if queue_batches = opts.queue_batches
+      raise ArgumentError.new("--queue-batches must be >= 1") if queue_batches < 1
+    end
+  end
+
+  private def self.validate_parallel_options(opts : Options) : Nil
+    raise ArgumentError.new("--unordered requires --parallel") if opts.unordered? && !opts.parallel?
+    return unless opts.parallel?
+
+    validate_parallel_mode_requirements(opts)
+    validate_parallel_unsupported_combinations(opts)
+    validate_parallel_numeric_options(opts)
+  end
+
   private def self.validate_options(opts : Options) : Nil
     validate_level(opts)
     validate_mode_combinations(opts)
     validate_body_combinations(opts)
     validate_field_names(opts)
+    validate_parallel_options(opts)
   end
 
   private def self.configure_parser(parser : OptionParser, opts : Options, remaining : Array(String)) : Nil
@@ -168,6 +211,23 @@ module Crys
       opts.count_mode = true
       opts.mode_n = true
     end
+    parser.on("--parallel", "Enable parallel batch processing (experimental)") { opts.parallel = true }
+    parser.on("--unordered", "Allow out-of-order output in parallel mode") { opts.unordered = true }
+    parser.on("--workers N", "Set parallel workers for --parallel") do |value|
+      opts.workers = value.to_i
+    rescue ex : ArgumentError
+      raise ArgumentError.new("invalid --workers value: #{value}")
+    end
+    parser.on("--batch-lines N", "Set batch size in lines for --parallel") do |value|
+      opts.batch_lines = value.to_i
+    rescue ex : ArgumentError
+      raise ArgumentError.new("invalid --batch-lines value: #{value}")
+    end
+    parser.on("--queue-batches N", "Set producer queue capacity in batches for --parallel") do |value|
+      opts.queue_batches = value.to_i
+    rescue ex : ArgumentError
+      raise ArgumentError.new("invalid --queue-batches value: #{value}")
+    end
     parser.on("-i", "Edit files in place") { opts.inplace_suffix = "" }
     parser.on("-I SUFFIX", "Edit files in place and keep backups with SUFFIX") { |suffix| opts.inplace_suffix = suffix }
     parser.on("-r LIB", "Add require \"LIB\" to the generated program") { |req| opts.requires << req }
@@ -193,6 +253,7 @@ module Crys
         f and nf are available only with -a.
         row is available only with --header and maps column names to field values.
         --sum and --count print their totals automatically unless --final is given.
+        --parallel is experimental and currently supports only -p, --map, and --select.
         Dependencies are loaded from CRYS_HOME (default: ~/.local/share/crys).
         Manage shard.yml and run shards install in CRYS_HOME manually.
 

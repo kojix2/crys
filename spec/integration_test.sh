@@ -148,11 +148,13 @@ cache_before="$(count_cache_files)"
 run_cmd_with_stdin 'cache\n' "$BIN" -n 'puts l.reverse.reverse'
 assert_status 0
 assert_stdout_eq 'cache'
+cache_mid="$(count_cache_files)"
 run_cmd_with_stdin 'cache\n' "$BIN" -n 'puts l.reverse.reverse'
 assert_status 0
 assert_stdout_eq 'cache'
 cache_after="$(count_cache_files)"
-[[ $((cache_after - cache_before)) -eq 1 ]] || fail 'expected exactly one new cached binary for repeated identical code'
+[[ "$cache_mid" -gt "$cache_before" ]] || fail 'expected first run to populate cache'
+[[ "$cache_after" -eq "$cache_mid" ]] || fail 'expected second identical run to reuse cache without new artifacts'
 
 printf 'Testing Crystal flag pass-through...\n'
 run_cmd_with_stdin 'ok\n' "$BIN" --release -n 'puts l'
@@ -279,5 +281,22 @@ printf 'Testing string separator backward compat with -F:...\n'
 run_cmd_with_stdin $'a:b\nc:d\n' "$BIN" -a -F: 'puts f[1]'
 assert_status 0
 assert_stdout_eq $'b\nd'
+
+printf 'Testing --parallel ordered mode on stdin...\n'
+run_cmd_with_stdin $'a\nb\n' "$BIN" --parallel --map 'l.upcase'
+assert_status 0
+assert_stdout_eq $'A\nB'
+
+printf 'Testing --parallel unordered mode on stdin...\n'
+run_cmd_with_stdin $'a\nb\n' "$BIN" --parallel --unordered --map 'l.upcase'
+assert_status 0
+sorted_actual="$(sort "$STDOUT_FILE")"
+[[ "$sorted_actual" == $'A\nB' ]] || fail 'unordered parallel output mismatch'
+
+printf 'Testing --parallel ordered mode on single file...\n'
+printf 'x\ny\n' >"$TEST_DIR/parallel_single.txt"
+run_cmd "$BIN" --parallel -p 'l.upcase' "$TEST_DIR/parallel_single.txt"
+assert_status 0
+assert_stdout_eq $'X\nY'
 
 printf 'All integration tests passed.\n'
