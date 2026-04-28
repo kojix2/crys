@@ -41,6 +41,12 @@ module Crys
     "#{path}.tmp.#{Process.pid}"
   end
 
+  private def self.inplace_temp_path(filepath : String) : String
+    dirname = File.dirname(filepath)
+    basename = File.basename(filepath)
+    File.join(dirname, ".#{basename}.crys_tmp_#{Process.pid}")
+  end
+
   private def self.write_atomic(path : String, content : String) : Nil
     tmp_path = temp_path(path)
     File.write(tmp_path, content)
@@ -88,7 +94,14 @@ module Crys
   end
 
   private def self.run_inplace_file(binary_path : String, filepath : String, inplace_suffix : String) : Int32
-    tmp_file = filepath + ".crys_tmp_#{Process.pid}"
+    path_info = File.info(filepath, follow_symlinks: false)
+    if path_info.type.symlink?
+      STDERR.puts "crys: refusing to edit symlink in place: #{filepath}"
+      return 1
+    end
+
+    file_info = File.info(filepath)
+    tmp_file = inplace_temp_path(filepath)
 
     unless inplace_suffix.empty?
       File.copy(filepath, filepath + inplace_suffix)
@@ -96,7 +109,7 @@ module Crys
 
     env = {"CRYS_FILE" => filepath}
     status = File.open(filepath) do |input_file|
-      File.open(tmp_file, "w", perm: 0o600) do |output_file|
+      File.open(tmp_file, "w", perm: file_info.permissions.value) do |output_file|
         Process.run(
           binary_path,
           env: env,
@@ -109,6 +122,7 @@ module Crys
 
     return status.exit_code unless status.success?
 
+    File.chmod(tmp_file, file_info.permissions.value)
     File.rename(tmp_file, filepath)
     0
   rescue ex : File::Error

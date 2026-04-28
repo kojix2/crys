@@ -84,6 +84,15 @@ assert_file_eq() {
   [[ "$actual" == "$expected" ]] || fail "file content mismatch for $path"
 }
 
+file_mode() {
+  local path="$1"
+  if stat -c '%a' "$path" >/dev/null 2>&1; then
+    stat -c '%a' "$path"
+  else
+    stat -f '%Lp' "$path"
+  fi
+}
+
 printf 'Building crys for integration tests...\n'
 crystal build "$ROOT_DIR/src/main.cr" -o "$BIN"
 
@@ -190,10 +199,21 @@ assert_file_eq "$TEST_DIR/path.txt.bak" 'first'
 
 printf 'Testing in-place edit without backup...\n'
 printf 'foo\nbar\n' >"$TEST_DIR/inplace.txt"
+chmod 640 "$TEST_DIR/inplace.txt"
 run_cmd "$BIN" -i -p 'l.upcase' "$TEST_DIR/inplace.txt"
 assert_status 0
 assert_file_eq "$TEST_DIR/inplace.txt" $'FOO\nBAR'
+[[ "$(file_mode "$TEST_DIR/inplace.txt")" == '640' ]] || fail 'expected in-place edit to preserve file mode'
 [[ ! -e "$TEST_DIR/inplace.txt".bak ]] || fail 'unexpected backup file for -i without suffix'
+
+printf 'Testing in-place edit refuses symlinks...\n'
+printf 'linked\n' >"$TEST_DIR/target.txt"
+ln -s "$TEST_DIR/target.txt" "$TEST_DIR/link.txt"
+run_cmd "$BIN" -i -p 'l.upcase' "$TEST_DIR/link.txt"
+assert_status 1
+assert_stderr_contains 'refusing to edit symlink in place'
+[[ -L "$TEST_DIR/link.txt" ]] || fail 'expected symlink to remain a symlink'
+assert_file_eq "$TEST_DIR/target.txt" 'linked'
 
 printf 'Testing invalid combinations...\n'
 run_cmd "$BIN" -i -p 'l.upcase'
