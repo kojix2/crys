@@ -1,8 +1,9 @@
 require "option_parser"
+require "colorize"
 
 module Crys
   class Options
-    HELP_BANNER        = "Usage: crys [options] 'CRYSTAL_CODE' [file ...]"
+    HELP_BANNER        = "#{"Usage:".colorize.bold.underline} crys [options] CODE [file ...]"
     HELP_SUMMARY_WIDTH = 20
 
     property crys_home : String
@@ -165,7 +166,7 @@ module Crys
     parser.banner = Options::HELP_BANNER
     parser.summary_width = Options::HELP_SUMMARY_WIDTH
     parser.separator ""
-    parser.separator "Options:"
+    parser.separator "Options:".colorize.bold.underline
     parser.invalid_option do |flag|
       raise ArgumentError.new("invalid option: #{flag}")
     end
@@ -247,7 +248,7 @@ module Crys
     end
     append_footer(parser, <<-TEXT)
 
-      Notes:
+      #{"Notes:".colorize.bold.underline}
         Input lines are chomped before evaluation.
         Variables: l, f, nf, nr, fnr, path, row (f/nf require -a; row requires --header).
         --sum/--count print totals automatically unless --final is given.
@@ -255,7 +256,7 @@ module Crys
         Dependencies are loaded from CRYS_HOME (default: #{opts.crys_home}).
         Manage shard.yml and run shards install in CRYS_HOME manually.
 
-      Examples:
+      #{"Examples:".colorize.bold.underline}
         crys -n 'puts l'
         crys -p 'l.upcase'
         crys -a -d: 'puts f[1]'
