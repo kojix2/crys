@@ -45,13 +45,13 @@ printf 'a\nb\n' | crys -p 'l.upcase'
 Auto-split input:
 
 ```sh
-printf 'a:b\nc:d\n' | crys -a -F: 'puts f[1]'
+printf 'a:b\nc:d\n' | crys -a -d: 'puts f[1]'
 ```
 
 Auto-split input with regex separator:
 
 ```sh
-printf 'a:  b\nc:   d\n' | crys -a -F'/: +/' 'puts f[1]'
+printf 'a:  b\nc:   d\n' | crys -a -d'/: +/' 'puts f[1]'
 ```
 
 Read a full JSON document from input:
@@ -63,7 +63,7 @@ printf '{"a":1}' | crys -r json 'puts JSON.parse(ARGF)["a"].as_i'
 Run setup and teardown code:
 
 ```sh
-printf '1\n2\n3\n' | crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
+printf '1\n2\n3\n' | crys -A 'sum = 0' -n 'sum += l.to_i' -E 'puts sum'
 ```
 
 Edit files in place:
@@ -76,7 +76,7 @@ crys -i -p 'l.upcase' file.txt
 Inspect generated code:
 
 ```sh
-crys --dump -p 'l.upcase'
+crys -D -p 'l.upcase'
 ```
 
 Filter lines with repeatable preconditions:
@@ -88,54 +88,54 @@ printf 'ok\nerror\nwarn\n' | crys -n --where 'l =~ /err|warn/' 'puts l'
 Use shortcut selectors and mappers:
 
 ```sh
-printf 'a\nb\n' | crys --select 'l == "a"'
-printf 'a\nb\n' | crys --map 'l.upcase'
+printf 'a\nb\n' | crys -F 'l == "a"'
+printf 'a\nb\n' | crys -M 'l.upcase'
 ```
 
 Bind split fields to names:
 
 ```sh
-printf 'alice:20\nbob:30\n' | crys -a -F: -N name,age 'puts "#{name}:#{age}"'
+printf 'alice:20\nbob:30\n' | crys -a -d: -N name,age 'puts "#{name}:#{age}"'
 ```
 
 Use header-based access:
 
 ```sh
-printf 'name,age\nalice,20\n' | crys -a -F, --header --map 'row["name"]'
+printf 'name,age\nalice,20\n' | crys -a -d, -H -M 'row["name"]'
 ```
 
 Aggregate quickly without boilerplate:
 
 ```sh
-printf '1\n2\n3\n' | crys --sum 'l.to_i'
-printf 'ok\nerr\nwarn\n' | crys --where 'l =~ /err|warn/' --count
-printf '1\nfoo\n3\n' | crys --where 'l =~ /^[0-9]+$/' --sum 'l.to_i' --count
+printf '1\n2\n3\n' | crys -S 'l.to_i'
+printf 'ok\nerr\nwarn\n' | crys -W 'l =~ /err|warn/' -C
+printf '1\nfoo\n3\n' | crys -W 'l =~ /^[0-9]+$/' -S 'l.to_i' -C
 ```
 
 ## Options
 
 - `-n`: read input line by line. Exposes `l`, `nr`, and `fnr`
-- `-p`: same as `-n`, but assigns the body result back to `l` and prints it
-- `-a`: auto-split `l` into `f` and expose `nf`
-- `-F SEP`: field separator for `-a`. Prefix with `/` and suffix with `/` to use a regex: `-F'/: +/'`
-- `-N NAMES`: bind split fields to variable names. Example: `-N name,count`
-- `--where COND`: pre-filter condition in line mode. Repeatable, combined with AND
-- `--map EXPR`: shortcut for line mode mapping (`puts(EXPR)`)
-- `--select COND`: shortcut for line mode filtering (`puts l if COND`)
-- `-h`, `--header`: treat first row as header and expose `row` hash (requires `-a`)
-- `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
-- `--count`: count selected rows; exposes `__crys_count`
-- `-i`: edit files in place without backup
+- `-p`, `--print`: same as `-n`, but assigns the body result back to `l` and prints it
+- `-a`, `--auto-split`: auto-split `l` into `f` and expose `nf`
+- `-d`, `--delimiter SEP`: field separator for `-a`. Prefix with `/` and suffix with `/` to use a regex: `-d'/: +/'`
+- `-N`, `--names NAMES`: bind split fields to variable names. Example: `-N name,count`
+- `-W`, `--where COND`: pre-filter condition in line mode. Repeatable, combined with AND
+- `-M`, `--map EXPR`: shortcut for line mode mapping (`puts(EXPR)`)
+- `-F`, `--filter COND`: shortcut for line mode filtering (`puts l if COND`)
+- `-H`, `--header`: treat first row as header and expose `row` hash (requires `-a`)
+- `-S`, `--sum EXPR`: sum expression across selected rows; exposes `__crys_sum`
+- `-C`, `--count`: count selected rows; exposes `__crys_count`
+- `-i`, `--inplace`: edit files in place without backup
 - `-I SUFFIX`: edit files in place and keep backups with `SUFFIX`
-- `-r LIB`: add `require "LIB"` to the generated program. Resolution is done from `CRYS_HOME`
-- `--init CODE`: insert code before the main body or loop
-- `--final CODE`: insert code after the main body or loop
-- `--dump`: print the generated Crystal code and exit
+- `-r`, `--require LIB`: add `require "LIB"` to the generated program. Resolution is done from `CRYS_HOME`
+- `-A`, `--init CODE`: insert code before the main body or loop
+- `-E`, `--final CODE`: insert code after the main body or loop
+- `-D`, `--dump`: print the generated Crystal code and exit
 - `-O LEVEL`: build with optimization level (`0`, `1`, `2`, `3`, `s`, `z`)
-- `--release`: build with `crystal build --release`
+- `-R`, `--release`: build with `crystal build --release`
 - `--error-trace`: build with `crystal build --error-trace`
 - `--version`: show tool version
-- `--help`: show help
+- `-h`, `--help`: show help
 
 ## Implicit Variables
 
@@ -176,11 +176,11 @@ Generated programs are cached under `CRYS_HOME/cache` and reused when the genera
 ## Constraints
 
 - `-i` requires at least one file
-- `--map` and `--select` cannot be combined
-- `--map` / `--select` cannot be combined with explicit `CRYSTAL_CODE`
+- `-M` and `-F` cannot be combined
+- `-M` / `-F` cannot be combined with explicit `CRYSTAL_CODE`
 - `-N` requires `-a`
-- `--header` requires `-a`
-- `--sum` / `--count` cannot be combined with explicit `CRYSTAL_CODE`
+- `-H` requires `-a`
+- `-S` / `-C` cannot be combined with explicit `CRYSTAL_CODE`
 
 ## Development
 
