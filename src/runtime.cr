@@ -37,12 +37,34 @@ module Crys
     File.join(source_dir, "#{cache_key}.cr")
   end
 
+  private def self.temp_path(path : String) : String
+    "#{path}.tmp.#{Process.pid}"
+  end
+
   private def self.write_atomic(path : String, content : String) : Nil
-    tmp_path = "#{path}.tmp.#{Process.pid}"
+    tmp_path = temp_path(path)
     File.write(tmp_path, content)
     File.rename(tmp_path, path)
   ensure
     File.delete(tmp_path) if tmp_path && File.exists?(tmp_path)
+  end
+
+  private def self.build_binary(opts : Options, source_path : String, tmp_binary_path : String) : Nil
+    status = Process.run(
+      "crystal",
+      args: crystal_build_args(opts, source_path, tmp_binary_path),
+      output: :inherit,
+      error: :inherit,
+      chdir: opts.crys_home,
+    )
+    exit status.exit_code unless status.success?
+  end
+
+  private def self.publish_binary(tmp_binary_path : String, binary_path : String) : Nil
+    File.rename(tmp_binary_path, binary_path)
+  rescue ex : File::AlreadyExistsError
+    # Another process may have published the same cache key first.
+    raise ex unless File.exists?(binary_path)
   end
 
   private def self.ensure_cached_binary(opts : Options, code : String) : String
@@ -53,24 +75,11 @@ module Crys
     source_path = cached_source_path(opts, key)
     write_atomic(source_path, code)
 
-    tmp_binary_path = "#{binary_path}.tmp.#{Process.pid}"
+    tmp_binary_path = temp_path(binary_path)
 
     begin
-      status = Process.run(
-        "crystal",
-        args: crystal_build_args(opts, source_path, tmp_binary_path),
-        output: :inherit,
-        error: :inherit,
-        chdir: opts.crys_home,
-      )
-      exit status.exit_code unless status.success?
-
-      begin
-        File.rename(tmp_binary_path, binary_path)
-      rescue ex : File::AlreadyExistsError
-        # Another process may have published the same cache key first.
-        raise ex unless File.exists?(binary_path)
-      end
+      build_binary(opts, source_path, tmp_binary_path)
+      publish_binary(tmp_binary_path, binary_path)
     ensure
       File.delete(tmp_binary_path) if File.exists?(tmp_binary_path)
     end
