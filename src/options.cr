@@ -218,15 +218,15 @@ module Crys
     rescue ex : ArgumentError
       raise ArgumentError.new("invalid --workers value: #{value}")
     end
-    parser.on("-B", "--batch-lines N", "Set batch size in lines for --parallel") do |value|
+    parser.on("-B", "--batch-lines N", "Set batch size in lines for --parallel [#{opts.batch_lines}]") do |value|
       opts.batch_lines = value.to_i
     rescue ex : ArgumentError
       raise ArgumentError.new("invalid --batch-lines value: #{value}")
     end
-    parser.on("-Q", "--queue-batches N", "Set producer queue capacity in batches for --parallel") do |value|
+    parser.on("-Q", "--queue N", "Set producer queue capacity for --parallel") do |value|
       opts.queue_batches = value.to_i
     rescue ex : ArgumentError
-      raise ArgumentError.new("invalid --queue-batches value: #{value}")
+      raise ArgumentError.new("invalid --queue value: #{value}")
     end
     parser.on("-i", "--inplace", "Edit files in place") { opts.inplace_suffix = "" }
     parser.on("-I SUFFIX", "Edit files in place and keep backups with SUFFIX") { |suffix| opts.inplace_suffix = suffix }
@@ -234,7 +234,7 @@ module Crys
     parser.on("-A", "--init CODE", "Run CODE before processing input") { |code| opts.init_code = code }
     parser.on("-E", "--final CODE", "Run CODE after processing input") { |code| opts.final_code = code }
     parser.on("-D", "--dump", "Print the generated Crystal program and exit") { opts.dump_only = true }
-    parser.on("-O LEVEL", "Build with crystal optimization level LEVEL") { |level| opts.level = level }
+    parser.on("-O LEVEL", "Build with crystal optimization level LEVEL [#{opts.level}]") { |level| opts.level = level }
     parser.on("-R", "--release", "Build with crystal --release") { opts.crystal_flags << "--release" }
     parser.on("--error-trace", "Build with crystal --error-trace") { opts.crystal_flags << "--error-trace" }
     parser.on("-h", "--help", "Show this help") do
@@ -248,20 +248,18 @@ module Crys
     append_footer(parser, <<-TEXT)
 
       Notes:
-        Input lines are always chomped before your code runs.
-        Available variables: l, f, nf, nr, fnr, path, row.
-        f and nf are available only with -a.
-        row is available only with --header and maps column names to field values.
-        --sum and --count print their totals automatically unless --final is given.
-        --parallel is experimental and currently supports only -p, --map, and --select.
-        Dependencies are loaded from CRYS_HOME (default: ~/.local/share/crys).
+        Input lines are chomped before evaluation.
+        Variables: l, f, nf, nr, fnr, path, row (f/nf require -a; row requires --header).
+        --sum/--count print totals automatically unless --final is given.
+        --parallel is experimental and supports only -p, --map, and --select.
+        Dependencies are loaded from CRYS_HOME (default: #{opts.crys_home}).
         Manage shard.yml and run shards install in CRYS_HOME manually.
 
       Examples:
         crys -n 'puts l'
         crys -p 'l.upcase'
-        crys -a -F: 'puts f[1]'
-        crys --init 'sum = 0' -n 'sum += l.to_i' --final 'puts sum'
+        crys -a -d: 'puts f[1]'
+        crys -A 'sum = 0' -n 'sum += l.to_i' -E 'puts sum'
         crys -r json 'pp JSON.parse(ARGF)'
         crys -I .bak -p 'l.gsub("foo", "bar")' file.txt
       TEXT

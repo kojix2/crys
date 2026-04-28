@@ -409,8 +409,8 @@ describe "parse_args" do
     opts.unordered?.should be_true
   end
 
-  it "parses --workers, --batch-lines and --queue-batches" do
-    opts = parse_args(["--parallel", "--workers", "4", "--batch-lines", "2048", "--queue-batches", "8", "--map", "l"])
+  it "parses --workers, --batch-lines and --queue" do
+    opts = parse_args(["--parallel", "--workers", "4", "--batch-lines", "2048", "--queue", "8", "--map", "l"])
     opts.workers.should eq(4)
     opts.batch_lines.should eq(2048)
     opts.queue_batches.should eq(8)
