@@ -5,35 +5,75 @@ module Crys
     opts.inplace_suffix.nil? ? opts.files : [] of String
   end
 
-  private def self.crystal_build_args(opts : Options, binary_path : String) : Array(String)
+  private def self.ensure_dir(path : String) : Nil
+    Dir.mkdir_p(path)
+  rescue ex : File::AlreadyExistsError
+    raise ex unless Dir.exists?(path)
+  end
+
+  private def self.crystal_build_args(opts : Options, source_path : String, binary_path : String) : Array(String)
     args = ["build", "-O#{opts.level}"]
     if opts.parallel?
       args << "-Dpreview_mt"
       args << "-Dexecution_context"
     end
 
-    args + opts.crystal_flags + ["-o", binary_path, "src/__crys_main.cr"]
+    args + opts.crystal_flags + ["-o", binary_path, source_path]
   end
 
-  private def self.cached_binary_path(opts : Options, code : String) : String
+  private def self.cache_key(opts : Options, code : String) : String
+    Digest::SHA256.hexdigest(opts.level + "\0" + opts.crystal_flags.join("\0") + "\0" + code)
+  end
+
+  private def self.cached_binary_path(opts : Options, cache_key : String) : String
     cache_dir = File.join(opts.crys_home, "cache")
-    Dir.mkdir_p(cache_dir)
-    cache_key = Digest::SHA256.hexdigest(opts.level + "\0" + opts.crystal_flags.join("\0") + "\0" + code)
+    ensure_dir(cache_dir)
     File.join(cache_dir, cache_key)
   end
 
+  private def self.cached_source_path(opts : Options, cache_key : String) : String
+    source_dir = File.join(opts.crys_home, "src")
+    ensure_dir(source_dir)
+    File.join(source_dir, "#{cache_key}.cr")
+  end
+
+  private def self.write_atomic(path : String, content : String) : Nil
+    tmp_path = "#{path}.tmp.#{Process.pid}"
+    File.write(tmp_path, content)
+    File.rename(tmp_path, path)
+  ensure
+    File.delete(tmp_path) if tmp_path && File.exists?(tmp_path)
+  end
+
   private def self.ensure_cached_binary(opts : Options, code : String) : String
-    binary_path = cached_binary_path(opts, code)
+    key = cache_key(opts, code)
+    binary_path = cached_binary_path(opts, key)
     return binary_path if File.exists?(binary_path)
 
-    status = Process.run(
-      "crystal",
-      args: crystal_build_args(opts, binary_path),
-      output: :inherit,
-      error: :inherit,
-      chdir: opts.crys_home
-    )
-    exit status.exit_code unless status.success?
+    source_path = cached_source_path(opts, key)
+    write_atomic(source_path, code)
+
+    tmp_binary_path = "#{binary_path}.tmp.#{Process.pid}"
+
+    begin
+      status = Process.run(
+        "crystal",
+        args: crystal_build_args(opts, source_path, tmp_binary_path),
+        output: :inherit,
+        error: :inherit,
+        chdir: opts.crys_home,
+      )
+      exit status.exit_code unless status.success?
+
+      begin
+        File.rename(tmp_binary_path, binary_path)
+      rescue ex : File::AlreadyExistsError
+        # Another process may have published the same cache key first.
+        raise ex unless File.exists?(binary_path)
+      end
+    ensure
+      File.delete(tmp_binary_path) if File.exists?(tmp_binary_path)
+    end
 
     binary_path
   end
@@ -78,11 +118,7 @@ module Crys
   end
 
   def self.run(opts : Options) : NoReturn
-    Dir.mkdir_p(File.join(opts.crys_home, "src"))
-    main_file = File.join(opts.crys_home, "src", "__crys_main.cr")
-
     code = generate_code(opts)
-    File.write(main_file, code)
 
     if opts.dump_only?
       print code
