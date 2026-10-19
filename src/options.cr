@@ -35,7 +35,7 @@ module Crys
     property queue_batches : Int32?
 
     def initialize
-      @crys_home = ENV.fetch("CRYS_HOME", File.join(ENV["HOME"], ".local", "share", "crys"))
+      @crys_home = ENV.fetch("CRYS_HOME", File.join(Path.home.to_s, ".local", "share", "crys"))
       @inplace_suffix = nil
       @workers = nil
       @queue_batches = nil

@@ -10,7 +10,11 @@ It uses a Ruby-like syntax and is about as fast as C.
 
 ## Installation
 
-Build from source:
+Download the archive for your platform from [GitHub Releases](https://github.com/kojix2/crys/releases), extract it, and put `crys` (or `crys.exe` on Windows) on your `PATH`.
+
+Prebuilt packages are available for Linux x86_64 (musl), macOS x86_64 and Apple Silicon, and Windows x86_64 (MSVC and UCRT64). The `crys` command still needs a local Crystal compiler to compile the code you pass to it. Install [Crystal](https://crystal-lang.org/install/) before running a program with `crys`.
+
+Build from source instead:
 
 ```sh
 git clone https://github.com/kojix2/crys
@@ -18,10 +22,6 @@ cd crys
 make release=1 parallel=1
 make install
 ```
-
-Q: Building from source? Why don’t you distribute pre-compiled binary files?
-
-A: This tool only works in environments where the Crystal compiler is available. If the Crystal code cannot be compiled, Crys will not run. That’s why this approach works.
 
 ## Usage
 
@@ -172,7 +172,7 @@ printf '{"a":1}' | crys -r json 'puts JSON.parse(ARGF)["a"].as_i'
 
 ## Caching
 
-Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code and Crystal flags are unchanged.
+Generated programs are cached under `CRYS_HOME/cache` and reused when the generated code, Crystal version, and build flags are unchanged.
 
 ## Constraints
 

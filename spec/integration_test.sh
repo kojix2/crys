@@ -165,6 +165,39 @@ cache_after="$(count_cache_files)"
 [[ "$cache_mid" -gt "$cache_before" ]] || fail 'expected first run to populate cache'
 [[ "$cache_after" -eq "$cache_mid" ]] || fail 'expected second identical run to reuse cache without new artifacts'
 
+printf 'Testing cache invalidation when Crystal version changes...\n'
+original_path="$PATH"
+real_crystal="$(command -v crystal)"
+mkdir -p "$TMP_DIR/shim"
+cat > "$TMP_DIR/shim/crystal" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" == '--version' ]]; then
+  printf '%s\n' "$CRYS_TEST_CRYSTAL_VERSION"
+else
+  exec "$CRYS_TEST_REAL_CRYSTAL" "$@"
+fi
+SH
+chmod +x "$TMP_DIR/shim/crystal"
+export CRYS_TEST_REAL_CRYSTAL="$real_crystal"
+export PATH="$TMP_DIR/shim:$PATH"
+
+export CRYS_TEST_CRYSTAL_VERSION='Crystal test-version-1'
+run_cmd_with_stdin 'cache\n' "$BIN" -n 'puts l.reverse.reverse'
+assert_status 0
+assert_stdout_eq 'cache'
+cache_version_one="$(count_cache_files)"
+[[ "$cache_version_one" -gt "$cache_after" ]] || fail 'expected a different Crystal version to create a new cache entry'
+
+export CRYS_TEST_CRYSTAL_VERSION='Crystal test-version-2'
+run_cmd_with_stdin 'cache\n' "$BIN" -n 'puts l.reverse.reverse'
+assert_status 0
+assert_stdout_eq 'cache'
+cache_version_two="$(count_cache_files)"
+[[ "$cache_version_two" -gt "$cache_version_one" ]] || fail 'expected a changed Crystal version to create a new cache entry'
+
+export PATH="$original_path"
+unset CRYS_TEST_REAL_CRYSTAL CRYS_TEST_CRYSTAL_VERSION
+
 printf 'Testing Crystal flag pass-through...\n'
 run_cmd_with_stdin 'ok\n' "$BIN" --release -n 'puts l'
 assert_status 0

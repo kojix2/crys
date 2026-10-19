@@ -21,14 +21,24 @@ module Crys
     args + opts.crystal_flags + ["-o", binary_path, source_path]
   end
 
+  private def self.crystal_version : String
+    output = IO::Memory.new
+    status = Process.run("crystal", args: ["--version"], output: output, error: :inherit)
+    raise "crystal --version failed" unless status.success?
+    output.to_s
+  end
+
   private def self.cache_key(opts : Options, code : String) : String
-    Digest::SHA256.hexdigest(opts.level + "\0" + opts.crystal_flags.join("\0") + "\0" + code)
+    Digest::SHA256.hexdigest(
+      opts.level + "\0" + opts.parallel?.to_s + "\0" + opts.crystal_flags.join("\0") + "\0" + crystal_version + "\0" + code
+    )
   end
 
   private def self.cached_binary_path(opts : Options, cache_key : String) : String
     cache_dir = File.join(opts.crys_home, "cache")
     ensure_dir(cache_dir)
-    File.join(cache_dir, cache_key)
+    suffix = {% if flag?(:win32) %} ".exe" {% else %} "" {% end %}
+    File.join(cache_dir, cache_key + suffix)
   end
 
   private def self.cached_source_path(opts : Options, cache_key : String) : String
@@ -38,6 +48,9 @@ module Crys
   end
 
   private def self.temp_path(path : String) : String
+    {% if flag?(:win32) %}
+      return path.sub(/\.exe\z/, ".tmp.#{Process.pid}.exe") if path.ends_with?(".exe")
+    {% end %}
     "#{path}.tmp.#{Process.pid}"
   end
 

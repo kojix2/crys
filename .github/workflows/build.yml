@@ -1,0 +1,199 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Crystal
+        if: matrix.target != 'x86_64-pc-windows-gnu'
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - name: Install Crystal (UCRT64)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-crystal
+            mingw-w64-ucrt-x86_64-shards
+            mingw-w64-ucrt-x86_64-binutils
+            zip
+
+      - name: Set package version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_ENV"
+            echo "RELEASE_FLAGS=--no-debug" >> "$GITHUB_ENV"
+            echo "STRIP_RELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=build-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+            echo "RELEASE_FLAGS=" >> "$GITHUB_ENV"
+            echo "STRIP_RELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install dependencies
+        if: matrix.target != 'x86_64-pc-windows-gnu'
+        run: shards install --without-development
+
+      - name: Install dependencies (UCRT64)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        shell: msys2 {0}
+        run: shards install --without-development
+
+      - name: Run specs
+        if: matrix.target != 'x86_64-pc-windows-gnu'
+        run: crystal spec
+
+      - name: Run specs (UCRT64)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        shell: msys2 {0}
+        run: crystal spec
+
+      - name: Build Linux (musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        shell: bash
+        run: |
+          docker run --rm -e RELEASE_FLAGS -e STRIP_RELEASE \
+            -v "$PWD:/workspace" -w /workspace \
+            crystallang/crystal:latest-alpine sh -ec '
+              apk add --no-cache binutils file pcre2-dev pcre2-static
+              shards install --without-development
+              shards build --release --static $RELEASE_FLAGS
+              if [ "$STRIP_RELEASE" = true ]; then strip bin/crys; fi
+              file bin/crys
+              bin/crys --help
+              CRYS_HOME=/tmp/crys-smoke bin/crys "puts 42" | grep -qx 42
+            '
+          pkg="crys-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$pkg"
+          cp bin/crys LICENSE README.md "dist/$pkg/"
+          tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
+          rm -rf "dist/$pkg"
+
+      - name: Build macOS
+        if: contains(matrix.target, 'apple-darwin')
+        shell: bash
+        run: |
+          brew install bdw-gc openssl@3 pcre2
+          ln -s "$(brew --prefix bdw-gc)/lib/libgc.a" libgc.a
+          ln -s "$(brew --prefix openssl@3)/lib/libcrypto.a" libcrypto.a
+          ln -s "$(brew --prefix pcre2)/lib/libpcre2-8.a" libpcre2-8.a
+          unset PKG_CONFIG_PATH
+          shards build --release --link-flags="-L $PWD $PWD/libgc.a $PWD/libcrypto.a $PWD/libpcre2-8.a" $RELEASE_FLAGS
+          if [[ "$STRIP_RELEASE" == true ]]; then strip bin/crys; fi
+          otool -L bin/crys
+          if otool -L bin/crys | grep -i homebrew; then
+            echo 'Homebrew runtime dependency detected' >&2
+            exit 1
+          fi
+          bin/crys --help
+          CRYS_HOME="$RUNNER_TEMP/crys-smoke" bin/crys 'puts 42' | grep -qx 42
+          pkg="crys-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$pkg"
+          cp bin/crys LICENSE README.md "dist/$pkg/"
+          tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
+          rm -rf "dist/$pkg"
+
+      - name: Build Windows (MSVC)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $buildArgs = @("--release", "--static", "--link-flags=-lucrt")
+          if ($env:RELEASE_FLAGS) { $buildArgs += $env:RELEASE_FLAGS }
+          shards build @buildArgs
+          if ($LASTEXITCODE -ne 0) { throw "shards build failed" }
+          if ($env:STRIP_RELEASE -eq "true") {
+            if (Get-Command llvm-strip -ErrorAction SilentlyContinue) {
+              llvm-strip bin/crys.exe
+            } elseif (Get-Command strip -ErrorAction SilentlyContinue) {
+              strip bin/crys.exe
+            } else {
+              throw "No strip command found"
+            }
+            if ($LASTEXITCODE -ne 0) { throw "strip failed" }
+          }
+          & bin/crys.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "crys --help failed" }
+          $env:CRYS_HOME = Join-Path $env:RUNNER_TEMP "crys-smoke"
+          $result = & bin/crys.exe "puts 42"
+          if ($LASTEXITCODE -ne 0 -or $result -ne "42") { throw "crys execution failed" }
+          $pkg = "crys-$env:VERSION-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path "dist/$pkg" -Force | Out-Null
+          Copy-Item bin/crys.exe, LICENSE, README.md "dist/$pkg/"
+          Compress-Archive -Path "dist/$pkg" -DestinationPath "dist/$pkg.zip"
+          Remove-Item "dist/$pkg" -Recurse -Force
+
+      - name: Build Windows (UCRT64)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        shell: msys2 {0}
+        run: |
+          shards build --release --static $RELEASE_FLAGS
+          if [[ "$STRIP_RELEASE" == true ]]; then strip bin/crys.exe; fi
+          bin/crys.exe --help
+          export CRYS_HOME="$PWD/.crys-smoke"
+          bin/crys.exe 'puts 42' | grep -qx 42
+          pkg="crys-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$pkg"
+          cp bin/crys.exe LICENSE README.md "dist/$pkg/"
+          (cd dist && zip -qr "$pkg.zip" "$pkg")
+          rm -rf "dist/$pkg"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: crys-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: crys-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish packages
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
