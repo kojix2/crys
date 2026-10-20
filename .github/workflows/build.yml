@@ -48,6 +48,7 @@ jobs:
             mingw-w64-ucrt-x86_64-crystal
             mingw-w64-ucrt-x86_64-shards
             mingw-w64-ucrt-x86_64-binutils
+            mingw-w64-ucrt-x86_64-pkgconf
             zip
 
       - name: Set package version
@@ -159,7 +160,10 @@ jobs:
         if: matrix.target == 'x86_64-pc-windows-gnu'
         shell: msys2 {0}
         run: |
-          shards build --release --static $RELEASE_FLAGS
+          pkg-config --modversion libcrypto
+          # Link OpenSSL and its Windows dependencies in the order given by its package metadata.
+          crypto_link_flags=$(pkg-config --libs --static libcrypto)
+          shards build --release --static --link-flags="-static $crypto_link_flags" $RELEASE_FLAGS
           if [[ "$STRIP_RELEASE" == true ]]; then strip bin/crys.exe; fi
           bin/crys.exe --help
           export CRYS_HOME="$PWD/.crys-smoke"
